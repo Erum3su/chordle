@@ -592,13 +592,13 @@ let stats = Object.assign({played:0,won:0,streak:0,best:0}, store.get('stats',{}
 const istats = Object.assign({played:0,won:0,streak:0,best:0}, store.get('istats',{}));
 stats.best = Math.max(stats.best, stats.streak);
 const MILESTONES = [
-  {n:3,  title:'调音师'},
-  {n:5,  title:'伴奏师'},
-  {n:10, title:'和声大师'},
-  {n:20, title:'指挥家'},
-  {n:50, title:'莫扎特再世'},
+  {n:5,  title:'调音师'},
+  {n:10, title:'伴奏师'},
+  {n:20, title:'和声大师'},
+  {n:40, title:'指挥家'},
+  {n:100, title:'莫扎特再世'},
 ];
-const TITLE_EN = {3:'Tuner', 5:'Accompanist', 10:'Harmony Master', 20:'Conductor', 50:'Mozart Reborn'};
+const TITLE_EN = {5:'Tuner', 10:'Accompanist', 20:'Harmony Master', 40:'Conductor', 100:'Mozart Reborn'};
 const mt = m => LANG === 'en' ? TITLE_EN[m.n] : m.title;
 const titleFor = n => { let t = null; MILESTONES.forEach(m => { if(n >= m.n) t = mt(m); }); return t; };
 const STREAK_LINES = ['', '', '连胜 2 局，手感来了！', '连胜 3 局，耳朵开窍了！', '连胜 4 局，稳！', '连胜 5 局，太强了！'];
