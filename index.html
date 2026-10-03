@@ -388,7 +388,7 @@ const isExt = id => TYPES.some(t => t.id === id && t.g === 9);
 const typeOk = (t, D) => (t.g !== 9 || D.ext || (D.nine && t.nine)) && (t.g !== 6 || D.color);
 const typeOkId = (id, D) => { const t = TYPES.find(x => x.id === id); return !!t && typeOk(t, D); };
 const DIFF = {
-  easy:  {lo:60, hi:83, inv:false, open:false, plays:Infinity, extra:0, note:'两个八度 · 只有原位 · 三和弦 3 个音，七和弦 4 个音'},
+  easy:  {lo:60, hi:83, inv:true,  open:false, plays:Infinity, extra:0, note:'两个八度 · 原位和转位 · 三和弦 3 个音，七和弦 4 个音'},
   normal:{lo:48, hi:83, inv:true,  open:0.4, color:true, plays:Infinity, extra:1, note:'三个八度 · 原位、转位和开放排列 · 加入 add9、六和弦等色彩和弦 · 4–5 个音'},
   hard:  {lo:36, hi:84, inv:true,  open:0.6, alt:0.7, color:true, nine:true, plays:Infinity, extra:2, note:'四个八度 · 转位、开放排列，属七和弦会加 alt 音 · 加入 9 和弦 · 5–6 个音'},
   expert:{lo:36, hi:84, inv:true,  open:0.6, alt:0.7, color:true, plays:Infinity, extra:2, ext:true, note:'四个八度 · 加入扩展和弦与上方结构 · 5–6 个音'},
