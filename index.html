@@ -105,11 +105,13 @@ h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;c
 @keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
 
 .msg{min-height:1.6em;font-size:.95rem;text-align:center}
-.selname{display:flex;align-items:baseline;gap:8px;justify-content:center;margin-top:2px;min-height:1.9rem}
-.selname .lab{font-size:.75rem;color:var(--muted);letter-spacing:.08em}
-.selname b{font-family:var(--mono);font-size:1.3rem;color:var(--sel)}
-.selname small{font-size:.8rem;color:var(--muted)}
-.selname.unknown b{color:var(--muted);font-family:var(--body);font-size:1rem;font-weight:500}
+.guess{position:relative}
+/* chord name of each row, hung outside the grid on the right so nothing below it moves */
+.rname{position:absolute;left:calc(100% + 12px);top:50%;transform:translateY(-50%);max-width:120px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-family:var(--mono);font-weight:700;font-size:.9rem;color:var(--muted);pointer-events:none}
+.rname.live{color:var(--sel)}
+.rname.unk{font-weight:400;opacity:.7}
+@media (max-width:640px){.guess{margin-right:72px}.rname{left:calc(100% + 8px);max-width:66px;font-size:.78rem}}
 .msg.err{color:var(--accent)}
 .result{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center}
 .result .name{font-family:var(--display);font-weight:900;font-size:1.5rem}
@@ -311,7 +313,6 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <div class="grid" id="grid"></div>
       <aside class="opps" id="opps" hidden aria-label="对手进度"></aside>
     </div>
-    <div class="selname" id="selName" aria-live="polite" hidden></div>
     <div class="msg" id="msg" role="status"></div>
     <div class="result" id="result" hidden>
       <div class="name" id="rName"></div>
@@ -923,19 +924,7 @@ function nameSelection(ms){
   }
   return null;
 }
-function renderSelName(){
-  const el = $('selName');
-  if(!el) return;
-  if(!sel.length || over){ el.hidden = true; return; }
-  const n = nameSelection(sel);
-  el.hidden = false;
-  el.classList.toggle('unknown', !n);
-  el.innerHTML = '<span class="lab">你选的是</span>';
-  const b = document.createElement('b'); b.textContent = n ? n.sym : '未识别的和弦'; el.appendChild(b);
-  if(n && n.zh){ const z = document.createElement('small'); z.textContent = n.zh; el.appendChild(z); }
-}
 function renderGrid(flipRow){
-  renderSelName();
   if(!chord){ $('grid').innerHTML = ''; return; }
   const n = chord.notes.length, g = $('grid');
   g.innerHTML = '';
@@ -962,6 +951,14 @@ function renderGrid(flipRow){
         c.textContent = noteName(cur[i]); c.classList.add('filled');
       }
       row.appendChild(c);
+    }
+    const shown = t ? t.guess : cur && cur.length ? cur : null;
+    if(shown){
+      const nm = nameSelection(shown), lab = document.createElement('span');
+      lab.className = 'rname' + (t ? '' : ' live') + (nm ? '' : ' unk');
+      lab.textContent = nm ? nm.sym : '?';
+      if(nm) lab.title = nm.sym;
+      row.appendChild(lab);
     }
     g.appendChild(row);
   }
