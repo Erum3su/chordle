@@ -277,6 +277,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
         <div class="row">
           <button type="button" class="linkbtn" id="allTriads">全部三和弦</button>
           <button type="button" class="linkbtn" id="allSevenths">全部七和弦</button>
+          <button type="button" class="linkbtn" id="allColor">全部色彩和弦</button>
           <button type="button" class="linkbtn" id="allExt">全部扩展和弦</button>
           <button type="button" class="linkbtn" id="allTypes">全选</button>
           <button type="button" class="linkbtn" id="noTypes">取消选择</button>
@@ -362,10 +363,17 @@ const TYPES = [
   {id:'min7', zh:'小七', sym:'m7', iv:[0,3,7,10], g:7},
   {id:'m7b5', zh:'半减七', sym:'m7♭5', iv:[0,3,6,10], g:7},
   {id:'dim7', zh:'减七', sym:'dim7', iv:[0,3,6,9], g:7},
+  // colour chords (普通 and up): a triad plus one added tone; noBass = that tone never goes in the bass
+  // add9 is sometimes voiced close as add2 (the 9th tucked between root and third)
+  {id:'add9',  zh:'加九', sym:'add9',    iv:[0,4,7,14], g:6, noBass:true, close2:0.4},
+  {id:'madd9', zh:'小加九', sym:'m(add9)', iv:[0,3,7,14], g:6, noBass:true, close2:0.4},
+  // 6 chords stay in root position: inverted, C6 is just Am7/C and Cm6 is Am7♭5/C
+  {id:'six',   zh:'大六', sym:'6',       iv:[0,4,7,9],  g:6, rootOnly:true},
+  {id:'min6',  zh:'小六', sym:'m6',      iv:[0,3,7,9],  g:6, rootOnly:true},
   // extended chords (大师 only): root in the bass, upper voices stacked in the given order, guide tones first
-  {id:'dom9',  zh:'属九',  sym:'9',     iv:[0,4,7,10,14],    order:[4,10,14,7],    g:9},
-  {id:'maj9',  zh:'大九',  sym:'maj9',  iv:[0,4,7,11,14],    order:[4,11,14,7],    g:9},
-  {id:'min9',  zh:'小九',  sym:'m9',    iv:[0,3,7,10,14],    order:[3,10,14,7],    g:9},
+  {id:'dom9',  zh:'属九',  sym:'9',     iv:[0,4,7,10,14],    order:[4,10,14,7],    g:9, nine:true},
+  {id:'maj9',  zh:'大九',  sym:'maj9',  iv:[0,4,7,11,14],    order:[4,11,14,7],    g:9, nine:true},
+  {id:'min9',  zh:'小九',  sym:'m9',    iv:[0,3,7,10,14],    order:[3,10,14,7],    g:9, nine:true},
   {id:'min11', zh:'小十一', sym:'m11',  iv:[0,3,7,10,14,17], order:[3,10,14,17,7], g:9},
   {id:'dom13', zh:'属十三', sym:'13',   iv:[0,4,10,14,21],   order:[4,10,14,21],   g:9},
   {id:'sus7',  zh:'属七挂四', sym:'7sus4', iv:[0,5,7,10],    order:[5,10,7],       g:9},
@@ -376,11 +384,14 @@ const TYPES = [
   {id:'ustb6', zh:'上方结构 ♭VI', sym:'7♯9♭13', iv:[0,4,10,20,24,27], order:[4,10,8,0,3], g:9, ust:'♭VI 级大三和弦'},
 ];
 const isExt = id => TYPES.some(t => t.id === id && t.g === 9);
+// which chord types a difficulty can use: colour chords from 普通 up, 9th chords from 困难 up, the other extended chords only in 大师
+const typeOk = (t, D) => (t.g !== 9 || D.ext || (D.nine && t.nine)) && (t.g !== 6 || D.color);
+const typeOkId = (id, D) => { const t = TYPES.find(x => x.id === id); return !!t && typeOk(t, D); };
 const DIFF = {
   easy:  {lo:60, hi:83, inv:false, open:false, plays:Infinity, extra:0, note:'两个八度 · 只有原位 · 三和弦 3 个音，七和弦 4 个音'},
-  normal:{lo:48, hi:83, inv:true,  open:0.4, plays:Infinity, extra:1, note:'三个八度 · 原位、转位和开放排列 · 多 1 个八度重复音（4–5 个音）'},
-  hard:  {lo:36, hi:84, inv:true,  open:0.6, alt:0.7, plays:Infinity, extra:2, note:'四个八度 · 转位、开放排列，属七和弦会加 alt 音 · 5–6 个音'},
-  expert:{lo:36, hi:84, inv:true,  open:0.6, alt:0.7, plays:Infinity, extra:2, ext:true, note:'四个八度 · 加入扩展和弦与上方结构 · 5–6 个音'},
+  normal:{lo:48, hi:83, inv:true,  open:0.4, color:true, plays:Infinity, extra:1, note:'三个八度 · 原位、转位和开放排列 · 加入 add9、六和弦等色彩和弦 · 4–5 个音'},
+  hard:  {lo:36, hi:84, inv:true,  open:0.6, alt:0.7, color:true, nine:true, plays:Infinity, extra:2, note:'四个八度 · 转位、开放排列，属七和弦会加 alt 音 · 加入 9 和弦 · 5–6 个音'},
+  expert:{lo:36, hi:84, inv:true,  open:0.6, alt:0.7, color:true, plays:Infinity, extra:2, ext:true, note:'四个八度 · 加入扩展和弦与上方结构 · 5–6 个音'},
 };
 const MAX_TRIES = 6;
 const ALTS = [{sym:'♭9', iv:13}, {sym:'♯9', iv:15}, {sym:'♯11', iv:18, dropFifth:true}, {sym:'♭13', iv:20, dropFifth:true}];
@@ -608,7 +619,7 @@ function voicingOk(notes, D, altNote, lenient){
   }
   return notes[0] >= D.lo && notes[notes.length-1] <= D.hi;
 }
-const pool = () => types.filter(id => DIFF[diff].ext || !isExt(id));
+const pool = () => types.filter(id => typeOkId(id, DIFF[diff]));
 function buildExt(D, T){
   const bass = 36 + rand(12), rootPc = bass % 12;
   const notes = [bass];
@@ -629,11 +640,12 @@ function buildChord(D, T){
   const rootPc = rand(12);
   const size = T.iv.length;
   let inv = 0;
-  if(D.inv){
-    const ws = size === 3 ? [45,35,20] : [40,30,20, T.id === 'maj7' ? 0 : 10];
+  if(D.inv && !T.rootOnly){
+    const ws = size === 3 ? [45,35,20] : [40,30,20, T.id === 'maj7' || T.noBass ? 0 : 10];   // weights by chord-tone order, before any add2 tuck
     inv = weighted(ws);
   }
-  let rel = T.iv.map((x,i) => i < inv ? x+12 : x).sort((a,b)=>a-b);
+  const ivs = T.close2 && R() < T.close2 ? T.iv.map(x => x === 14 ? 2 : x).sort((a,b)=>a-b) : T.iv;
+  let rel = ivs.map((x,i) => i < inv ? x+12 : x).sort((a,b)=>a-b);
   let open = false;
   if(D.open && R() < D.open){
     if(size === 3){ rel[1] += 12; }
@@ -654,7 +666,8 @@ function buildChord(D, T){
   const pcOf = iv => ((rootPc + iv) % 12 + 12) % 12;
   const bassPc = notes[0] % 12;
   inv = T.iv.findIndex(x => pcOf(x) === bassPc);
-  if(T.id === 'maj7' && inv === 3) return null;
+  if((T.id === 'maj7' || T.noBass) && inv === 3) return null;
+  if(T.rootOnly && inv !== 0) return null;   // the 7th / added tone never sits in the bass
   const fifthIv = T.iv[2];
   let extra = D.extra, alt = null, altNote = null;
   if(D.alt && T.id === 'dom7' && R() < D.alt){
@@ -895,8 +908,6 @@ const CHORD_DICT = (() => {
     add('7(' + a.sym + ')', '属七 ' + a.sym, dom7.iv.concat(a.iv));
     add('7(' + a.sym + ')', '属七 ' + a.sym + '（省略五音）', dom7.iv.filter(x => x !== 7).concat(a.iv));
   });
-  add('6', '大六', [0,4,7,9]); add('m6', '小六', [0,3,7,9]);
-  add('add9', '加九', [0,2,4,7]); add('m(add9)', '小加九', [0,2,3,7]);
   add('5', '强力和弦', [0,7]);
   return d;
 })();
@@ -976,9 +987,9 @@ function renderAll(){
   const D = DIFF[diff];
   document.querySelectorAll('#diffSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === diff));
   $('diffNote').textContent = D.note;
-  document.querySelectorAll('#typeChips .chip').forEach(c => { c.setAttribute('aria-pressed', types.includes(c.dataset.t)); c.hidden = isExt(c.dataset.t) && !D.ext; });
-  $('allExt').hidden = !D.ext;
-  const shown = TYPES.filter(t => types.includes(t.id) && (D.ext || t.g !== 9));
+  document.querySelectorAll('#typeChips .chip').forEach(c => { c.setAttribute('aria-pressed', types.includes(c.dataset.t)); c.hidden = !typeOkId(c.dataset.t, D); });
+  $('allExt').hidden = !D.ext; $('allColor').hidden = !D.color;
+  const shown = TYPES.filter(t => types.includes(t.id) && typeOk(t, D));
   const ts = $('typeSum');
   ts.textContent = !shown.length ? '还没选，点开选择' : shown.length <= 4 ? shown.map(t => t.zh).join('、') : shown.slice(0,3).map(t => t.zh).join('、') + ` 等 ${shown.length} 种`;
   ts.classList.toggle('empty', !shown.length);
@@ -1007,6 +1018,8 @@ const FEEL = {
   maj7:'温暖、慵懒、都市感，爵士和 City Pop 的常客', min7:'放松、柔和、淡淡感伤，R&B 常用', m7b5:'暗淡、迷离、悬念感，常引向小调的属和弦',
   dim7:'戏剧化、紧张到极点，老电影里“危机来了”', dom9:'圆润的属七，放克和灵魂乐的味道', maj9:'比大七更柔更亮，梦幻、浪漫',
   min9:'深沉、丝滑、略带惆怅，Neo-Soul 的标志', min11:'空灵、开阔，现代爵士感', dom13:'饱满华丽的属和弦，大乐队爵士味',
+  add9:'明亮又多一层光泽，流行和民谣最爱的“加一点色彩”', madd9:'忧郁里带着透亮，抒情、电影感',
+  six:'复古、甜美、轻松，老爵士和摇摆乐味道', min6:'带点异国情调的忧郁，神秘、优雅',
   sus7:'悬浮又有推动力，福音和现代爵士常用', mmaj7:'神秘、阴暗，电影悬疑感（007 的结尾和弦）', six9:'明亮、开放、圆满，爵士常用的结尾',
   ust2:'利底亚色彩，明亮、漂浮、很现代', ust6:'紧张里带着甜，张力很强', ustb6:'黑暗、强烈的 alt 张力，急着要解决',
 };
@@ -1053,6 +1066,7 @@ const setTypes = list => { types = list; store.set('types', types); settingsChan
 function settingsChanged(){ if(VS.room){ renderAll(); vsPublish(); } else newRound(); }
 $('allTriads').onclick = () => setTypes(TYPES.filter(t=>t.g===3).map(t=>t.id));
 $('allSevenths').onclick = () => setTypes(TYPES.filter(t=>t.g===7).map(t=>t.id));
+$('allColor').onclick = () => setTypes(TYPES.filter(t=>t.g===6).map(t=>t.id));
 $('allTypes').onclick = () => setTypes(TYPES.map(t=>t.id));
 $('allExt').onclick = () => setTypes(TYPES.filter(t=>t.g===9).map(t=>t.id));
 $('noTypes').onclick = () => setTypes([]);
