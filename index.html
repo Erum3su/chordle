@@ -102,7 +102,7 @@ button.inst::after{display:none}
 .stbl .meter{display:inline-block;width:46px;height:6px;border-radius:3px;background:var(--line);vertical-align:middle;margin-left:6px;overflow:hidden}
 .stbl .meter i{display:block;height:100%;background:var(--ok)}
 @media (max-width:480px){.stbl .meter{display:none}.stbl td,.stbl th{padding:5px 4px}}
-.stbl tr.weak td:first-child::after{content:"最容易错";margin-left:6px;font-size:.68rem;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:0 6px}
+.stbl tr.weak td:first-child::after{content:var(--weak-label,"最容易错");margin-left:6px;font-size:.68rem;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:0 6px}
 .sempty{color:var(--muted);font-size:.9rem}
 .inst{position:relative;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px 4px 10px;color:var(--fg);cursor:pointer}
 .inst svg{width:14px;height:14px;fill:var(--accent);flex:none}
@@ -323,6 +323,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
     <h1>Chordle<small>听一遍，在琴键上找出它</small></h1>
     <div class="hright">
     <div class="hbtns">
+    <button type="button" class="inst" id="langBtn" title="中文 / English"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.9 6h-2.95a15.7 15.7 0 0 0-1.38-3.56A8.03 8.03 0 0 1 18.9 8zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14a8.2 8.2 0 0 1 0-4h3.38a16.5 16.5 0 0 0 0 4H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56A8 8 0 0 1 5.08 16zm2.95-8H5.08a8 8 0 0 1 4.33-3.56A15.7 15.7 0 0 0 8.03 8zM12 19.96A14.1 14.1 0 0 1 10.09 16h3.82A14.1 14.1 0 0 1 12 19.96zM14.34 14H9.66a14.7 14.7 0 0 1 0-4h4.68a14.7 14.7 0 0 1 0 4zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56zM16.36 14a16.5 16.5 0 0 0 0-4h3.38a8.2 8.2 0 0 1 0 4h-3.38z"/></svg><span id="langLab">EN</span></button>
     <button type="button" class="inst" id="statsBtn" title="个人统计"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10h3v10H4zm6.5 0V4h3v16h-3zM17 20v-7h3v7h-3z"/></svg><span>统计</span></button>
     <label class="inst" title="音色"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg><select id="instSel" aria-label="音色"></select></label>
     </div>
@@ -493,6 +494,9 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
 
 <script>
 (() => {
+// ---------- language ----------
+let LANG = (() => { try{ const v = localStorage.getItem('chordle:lang'); if(v === 'zh' || v === 'en') return v; }catch(e){} return /^zh/i.test(navigator.language || '') ? 'zh' : 'en'; })();
+const L = (zh, en) => LANG === 'en' ? en : zh;
 const NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const isBlack = pc => [1,3,6,8,10].includes(pc);
 const noteName = m => NAMES[m%12] + (Math.floor(m/12)-1);
@@ -545,7 +549,22 @@ const DIFF = {
 };
 const MAX_TRIES = 6;
 const ALTS = [{sym:'♭9', iv:13}, {sym:'♯9', iv:15}, {sym:'♯11', iv:18, dropFifth:true}, {sym:'♭13', iv:20, dropFifth:true}];
-const INV_ZH = ['原位','第一转位','第二转位','第三转位'];
+const DIFF_NOTE_EN = {
+  easy:'Two octaves · root position and inversions · triads have 3 notes, 7th chords 4',
+  normal:'Three octaves · inversions and open voicings · adds colour chords like add9 and 6ths · 4–5 notes',
+  hard:'Four octaves · inversions, open voicings, altered notes on dominant 7ths · adds 9th chords · 5–6 notes',
+  expert:'Four octaves · adds extended chords and upper structures · 5–6 notes'};
+const PROG_NOTE_EN = {
+  easy:'2–3 triads · the most common progressions',
+  normal:'3–4 chords · pop progressions with V7 and the secondary dominants pop uses (III7, II7, I7)',
+  hard:'3–5 chords · triads mixed with 7th chords · jazz ii–V–I and secondary dominants II7, III7, VI7',
+  expert:'4–6 chords · borrowed chords and secondary dominants · ♭VII, iv, II7 and more'};
+const INV_ZH = ['原位','第一转位','第二转位','第三转位'], INV_EN = ['root position','1st inversion','2nd inversion','3rd inversion'];
+const TYPE_EN = {maj:'major', min:'minor', dim:'diminished', aug:'augmented', sus2:'sus2', sus4:'sus4', dom7:'dominant 7th', maj7:'major 7th', min7:'minor 7th', m7b5:'half-diminished', dim7:'diminished 7th',
+  add9:'add9', madd9:'minor add9', six:'major 6th', min6:'minor 6th', dom9:'dominant 9th', maj9:'major 9th', min9:'minor 9th', min11:'minor 11th', dom13:'dominant 13th', sus7:'7sus4',
+  mmaj7:'minor-major 7th', six9:'6/9', ust2:'upper structure II', ust6:'upper structure VI', ustb6:'upper structure ♭VI', alt7:'altered dominant', quart:'quartal'};
+const UST_EN = {ust2:'a II major triad', ust6:'a VI major triad', ustb6:'a ♭VI major triad'};
+const tz = t => LANG === 'en' ? TYPE_EN[t.id] || t.zh : t.zh;
 
 // ---------- persisted prefs & stats ----------
 const store = {
@@ -564,8 +583,11 @@ const MILESTONES = [
   {n:20, title:'指挥家'},
   {n:50, title:'莫扎特再世'},
 ];
-const titleFor = n => { let t = null; MILESTONES.forEach(m => { if(n >= m.n) t = m.title; }); return t; };
+const TITLE_EN = {3:'Tuner', 5:'Accompanist', 10:'Harmony Master', 20:'Conductor', 50:'Mozart Reborn'};
+const mt = m => LANG === 'en' ? TITLE_EN[m.n] : m.title;
+const titleFor = n => { let t = null; MILESTONES.forEach(m => { if(n >= m.n) t = mt(m); }); return t; };
 const STREAK_LINES = ['', '', '连胜 2 局，手感来了！', '连胜 3 局，耳朵开窍了！', '连胜 4 局，稳！', '连胜 5 局，太强了！'];
+const STREAK_EN = ['', '', '2 in a row, warming up!', '3 in a row, your ears are open!', '4 in a row, steady!', '5 in a row, amazing!'];
 
 // ---------- audio ----------
 // Real piano samples (tonejs-instruments piano set, MIT), one every minor third from C2 to C6, pitch-shifted to the notes in between
@@ -619,16 +641,16 @@ function sampleNote(buffers, m, t, vel, dur){
 // Sampled ones load from /samples/<id>/<midi>.mp3 the first time they are picked (tonejs-instruments, MIT);
 // electric piano and synth are built from oscillators.
 const INSTRUMENTS = [
-  {id:'piano',   name:'钢琴'},
-  {id:'grand',   name:'音乐会大钢琴', notes:[30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90]},
-  {id:'epiano',  name:'电钢琴',   synth:epianoNote},
-  {id:'guitar',  name:'原声吉他', notes:[38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74]},
-  {id:'nylon',   name:'尼龙吉他', notes:[35, 38, 42, 45, 49, 52, 55, 59, 63, 66, 69, 73, 76, 79, 82]},
-  {id:'eguitar', name:'电吉他',   notes:[37, 40, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
-  {id:'synth',   name:'合成器',   synth:padNote},
-  {id:'organ',   name:'风琴',     notes:[33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84], gain:0.9},
-  {id:'harp',    name:'竖琴',     notes:[35, 38, 41, 45, 48, 52, 55, 59, 62, 65, 69, 72, 76, 79, 83, 86]},
-  {id:'strings', name:'弦乐',     notes:[36, 39, 43, 46, 49, 52, 55, 60, 64, 67, 72, 76, 79, 84, 88]},
+  {id:'piano',   name:'钢琴', en:'Piano'},
+  {id:'grand',   name:'音乐会大钢琴', en:'Concert grand', notes:[30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90]},
+  {id:'epiano',  name:'电钢琴', en:'Electric piano',   synth:epianoNote},
+  {id:'guitar',  name:'原声吉他', en:'Acoustic guitar', notes:[38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74]},
+  {id:'nylon',   name:'尼龙吉他', en:'Nylon guitar', notes:[35, 38, 42, 45, 49, 52, 55, 59, 63, 66, 69, 73, 76, 79, 82]},
+  {id:'eguitar', name:'电吉他', en:'Electric guitar',   notes:[37, 40, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
+  {id:'synth',   name:'合成器', en:'Synth pad',   synth:padNote},
+  {id:'organ',   name:'风琴', en:'Organ',     notes:[33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84], gain:0.9},
+  {id:'harp',    name:'竖琴', en:'Harp',     notes:[35, 38, 41, 45, 48, 52, 55, 59, 62, 65, 69, 72, 76, 79, 83, 86]},
+  {id:'strings', name:'弦乐', en:'Strings',     notes:[36, 39, 43, 46, 49, 52, 55, 60, 64, 67, 72, 76, 79, 84, 88]},
 ];
 let inst = INSTRUMENTS[0];
 const instBufs = {}, instLoads = {};
@@ -874,6 +896,10 @@ function chordTitle(c){
   return s;
 }
 function chordDesc(c){
+  if(LANG === 'en'){
+    if(c.type.g === 9) return NAMES[c.rootPc] + ' ' + tz(c.type) + (c.type.ust ? ' (' + UST_EN[c.type.id] + ' over a dominant 7th)' : ' chord') + ' · root in the bass';
+    return NAMES[c.rootPc] + ' ' + tz(c.type) + ' · ' + INV_EN[c.inv] + (c.open ? ' · open voicing' : '') + (c.alt ? ' · altered ' + c.alt.sym : '');
+  }
   if(c.type.g === 9) return NAMES[c.rootPc] + ' ' + c.type.zh + (c.type.ust ? '（' + c.type.ust + '叠在属七上）' : '和弦') + ' · 根音在低音';
   return NAMES[c.rootPc] + ' ' + c.type.zh + '和弦 · ' + INV_ZH[c.inv] + (c.open ? ' · 开放排列' : '') + (c.alt ? ' · alt 音 ' + c.alt.sym : '');
 }
@@ -891,7 +917,7 @@ function beginRound(seed){
   if(!pool().length){
     chord = null; tries = []; sel = []; keyState = {}; over = false; locked = false;
     $('result').hidden = true; $('actBtns').hidden = false;
-    setMsg(types.length ? '扩展和弦只在大师难度出现，这个难度请至少选一种基础和弦类型。' : '请至少选一种和弦类型。', true);
+    setMsg(types.length ? L('扩展和弦只在大师难度出现，这个难度请至少选一种基础和弦类型。', 'Extended chords only appear on Master. Pick at least one basic chord type for this level.') : L('请至少选一种和弦类型。', 'Pick at least one chord type.'), true);
     buildKeyboard(); renderGrid(); renderAll(); return;
   }
   R = seed == null ? Math.random : mulberry32(seed);
@@ -901,7 +927,7 @@ function beginRound(seed){
   tries = []; sel = []; keyState = {}; over = false; locked = false;
   playsLeft = DIFF[diff].plays;
   $('result').hidden = true; $('actBtns').hidden = false; $('kb').classList.remove('celebrate');
-  setMsg(VS.room ? `第 ${VS.round} 局开始，先听一遍和弦。` : '先听一遍和弦。');
+  setMsg(VS.room ? L(`第 ${VS.round} 局开始，先听一遍和弦。`, `Round ${VS.round}. Listen to the chord first.`) : L('先听一遍和弦。', 'Listen to the chord first.'));
   buildKeyboard(); renderGrid(); renderAll();
   vsPublish();
 }
@@ -922,7 +948,7 @@ const RANK = {miss:1, near:2, ok:3};
 function submit(){
   if(!chord || over) return;
   const n = chord.notes.length;
-  if(sel.length !== n){ setMsg(`需要选 ${n} 个音，现在选了 ${sel.length} 个。`, true); return; }
+  if(sel.length !== n){ setMsg(L(`需要选 ${n} 个音，现在选了 ${sel.length} 个。`, `Pick ${n} notes. You have ${sel.length}.`), true); return; }
   if(playsLeft === DIFF[diff].plays && !tries.length){ /* allowed even without listening */ }
   const guess = sel.slice().sort((a,b)=>a-b);
   const res = evaluate(guess);
@@ -934,7 +960,7 @@ function submit(){
   const won = res.every(r => r==='ok');
   if(won) finish(true);
   else if(tries.length >= MAX_TRIES) finish(false);
-  else setMsg(`还剩 ${MAX_TRIES - tries.length} 次机会。`);
+  else setMsg(L(`还剩 ${MAX_TRIES - tries.length} 次机会。`, `${MAX_TRIES - tries.length} tries left.`));
   renderAll();
   vsPublish();
 }
@@ -946,18 +972,18 @@ function finish(won){
   const lost = stats.streak;
   if(won){ stats.won++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); } else stats.streak = 0;
   store.set('stats', stats);
-  const praise = ['一耳朵就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'];
-  setMsg(won ? praise[tries.length-1] : (lost >= 2 ? `连胜 ${lost} 局到此为止，下一局重新开始！答案是：` : '这次没猜中，答案是：'));
+  const praise = L(['一耳朵就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'], ['Got it by ear in one!','Beautiful!','Very good!','Nice!','Phew, close one.','Last try, nailed it!']);
+  setMsg(won ? praise[tries.length-1] : (lost >= 2 ? L(`连胜 ${lost} 局到此为止，下一局重新开始！答案是：`, `Your ${lost}-game streak ends here. The answer was:`) : L('这次没猜中，答案是：', 'Not this time. The answer was:')));
   const ms = won ? MILESTONES.find(m => m.n === stats.streak) : null;
   const rw = $('reward'), res = $('result');
   res.classList.toggle('win', won); res.classList.toggle('milestone', !!ms);
   rw.hidden = !(won && stats.streak >= 2);
   if(!rw.hidden){
     rw.style.animation = 'none'; void rw.offsetWidth; rw.style.animation = '';
-    $('rStreak').textContent = '🔥 ' + (STREAK_LINES[stats.streak] || `连胜 ${stats.streak} 局，势不可挡！`);
-    $('rBadge').innerHTML = ms ? `解锁称号：<b>「${ms.title}」</b>` : (() => {
+    $('rStreak').textContent = '🔥 ' + (L(STREAK_LINES, STREAK_EN)[stats.streak] || L(`连胜 ${stats.streak} 局，势不可挡！`, `${stats.streak} in a row, unstoppable!`));
+    $('rBadge').innerHTML = ms ? L(`解锁称号：<b>「${mt(ms)}」</b>`, `Title unlocked: <b>${mt(ms)}</b>`) : (() => {
       const next = MILESTONES.find(m => m.n > stats.streak);
-      return next ? `再赢 ${next.n - stats.streak} 局解锁「${next.title}」` : '';
+      return next ? L(`再赢 ${next.n - stats.streak} 局解锁「${mt(next)}」`, `${next.n - stats.streak} more wins to unlock “${mt(next)}”`) : '';
     })();
   }
   if(won){
@@ -1117,8 +1143,8 @@ function renderGrid(flipRow){
     row.className = 'guess'; row.style.setProperty('--n', n);
     const t = tries[r];
     if(t){
-      row.classList.add('done'); row.tabIndex = 0; row.title = '点击播放这一行';
-      row.setAttribute('role','button'); row.setAttribute('aria-label', '播放第 ' + (r+1) + ' 次猜测');
+      row.classList.add('done'); row.tabIndex = 0; row.title = L('点击播放这一行', 'Click to play this row');
+      row.setAttribute('role','button'); row.setAttribute('aria-label', L('播放第 ' + (r+1) + ' 次猜测', 'Play guess ' + (r+1)));
       row.onclick = () => playChord(t.guess);
       row.onkeydown = e => { if(e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); playChord(t.guess); } };
     }
@@ -1150,17 +1176,17 @@ function renderGrid(flipRow){
 function renderAll(){
   const D = DIFF[diff];
   document.querySelectorAll('#diffSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === diff));
-  $('diffNote').textContent = MODE === 'prog' ? PROG_NOTE[diff] : D.note;
+  $('diffNote').textContent = MODE === 'prog' ? L(PROG_NOTE[diff], PROG_NOTE_EN[diff]) : L(D.note, DIFF_NOTE_EN[diff]);
   document.querySelectorAll('#typeChips .chip').forEach(c => { c.setAttribute('aria-pressed', types.includes(c.dataset.t)); c.hidden = !typeOkId(c.dataset.t, D); });
   $('allExt').hidden = !D.ext; $('allColor').hidden = !D.color;
   const shown = TYPES.filter(t => types.includes(t.id) && typeOk(t, D));
   const ts = $('typeSum');
-  ts.textContent = !shown.length ? '还没选，点开选择' : shown.length <= 4 ? shown.map(t => t.zh).join('、') : shown.slice(0,3).map(t => t.zh).join('、') + ` 等 ${shown.length} 种`;
+  ts.textContent = !shown.length ? L('还没选，点开选择', 'None yet, open to pick') : shown.length <= 4 ? shown.map(tz).join(L('、', ', ')) : shown.slice(0,3).map(tz).join(L('、', ', ')) + L(` 等 ${shown.length} 种`, ` and ${shown.length - 3} more`);
   ts.classList.toggle('empty', !shown.length);
   if(!shown.length) $('typeBox').open = true;
   $('playCnt').textContent = '';
   $('playBtn').disabled = !chord || (!over && (locked || playsLeft <= 0));
-  $('hint').textContent = chord ? '' : '还没选和弦类型';
+  $('hint').textContent = chord ? '' : L('还没选和弦类型', 'No chord types selected');
   $('submitBtn').disabled = !chord || sel.length !== chord.notes.length;
   $('giveUp').disabled = !chord;
   $('clearBtn').disabled = !sel.length;
@@ -1183,12 +1209,23 @@ const FEEL = {
   ust2:'利底亚色彩，明亮、漂浮、很现代', ust6:'紧张里带着甜，张力很强', ustb6:'黑暗、强烈的 alt 张力，急着要解决',
   alt7:'最紧张、最“歪”的属和弦，♭9、♯9、♭13 全上，强烈地想解决', quart:'开放、悬浮，听不出大调还是小调，现代爵士的味道',
 };
+const FEEL_EN = {
+  maj:'Bright, stable, open: the most “settled” sound', min:'Soft, melancholy, inward', dim:'Tense and restless, eager to move on', aug:'Floating, dreamy, a little eerie, with nowhere to land',
+  sus2:'Open, airy, fresh, neither bright nor dark', sus4:'Unresolved, waiting to fall back to major', dom7:'Driving, a bit bluesy, wants to resolve home',
+  maj7:'Warm, lazy, urban: a jazz and City Pop favourite', min7:'Relaxed, soft, gently wistful; common in R&B', m7b5:'Dark, hazy, suspenseful; often leads to a minor key’s dominant',
+  dim7:'Dramatic, maximum tension: “danger!” in old films', dom9:'A rounder dominant 7th with a funk and soul flavour', maj9:'Softer and brighter than maj7: dreamy, romantic',
+  min9:'Deep, silky, a little bittersweet: the Neo-Soul signature', min11:'Spacious and airy, modern jazz', dom13:'A rich, lush dominant with big-band flavour',
+  add9:'Bright with extra shimmer: pop and folk’s favourite touch of colour', madd9:'Melancholy with a clear, glassy edge; cinematic',
+  six:'Retro, sweet, easygoing: old jazz and swing', min6:'Exotic melancholy, mysterious and elegant',
+  sus7:'Floating yet driving; common in gospel and modern jazz', mmaj7:'Mysterious and dark, film-noir suspense (the James Bond ending chord)', six9:'Bright, open, complete: a classic jazz ending',
+  ust2:'Lydian colour: bright, floating, very modern', ust6:'Sweetness inside tension, very strong pull', ustb6:'Dark, intense altered tension that needs to resolve',
+  alt7:'The tensest, most “crooked” dominant: ♭9, ♯9 and ♭13 all at once', quart:'Open and floating, neither major nor minor: a modern jazz sound'};
 const tip = document.createElement('div'); tip.className = 'tip'; tip.setAttribute('role', 'tooltip'); tip.hidden = true;
 document.body.appendChild(tip);
 function showTip(el, t){
   tip.innerHTML = '';
-  const h = document.createElement('b'); h.textContent = t.zh + (t.sym ? ' ' + (t.chip || t.sym) : ''); tip.appendChild(h);
-  const p = document.createElement('span'); p.textContent = FEEL[t.id] || ''; tip.appendChild(p);
+  const h = document.createElement('b'); h.textContent = tz(t) + (t.sym && tz(t) !== t.sym ? ' ' + (t.chip || t.sym) : ''); tip.appendChild(h);
+  const p = document.createElement('span'); p.textContent = L(FEEL, FEEL_EN)[t.id] || ''; tip.appendChild(p);
   tip.hidden = false;
   const r = el.getBoundingClientRect(), w = tip.offsetWidth, h2 = tip.offsetHeight;
   const x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
@@ -1201,11 +1238,14 @@ addEventListener('scroll', hideTip, {passive:true});
 document.addEventListener('pointerdown', e => { if(!e.target.closest || !e.target.closest('.chip')) hideTip(); });
 
 // ---------- events ----------
+function chipLabel(b, t){
+  b.innerHTML = tz(t) + (t.sym && tz(t) !== t.sym ? `<span class="sym">${t.chip || t.sym}</span>` : '');
+  b.setAttribute('aria-description', L(FEEL, FEEL_EN)[t.id] || '');
+}
 TYPES.forEach(t => {
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'chip'; b.dataset.t = t.id; b.id = 'type-'+t.id;
-  b.innerHTML = t.zh + (t.sym ? `<span class="sym">${t.chip || t.sym}</span>` : '');
-  b.setAttribute('aria-description', FEEL[t.id] || '');
+  chipLabel(b, t);
   // mouse: hover shows the feel; touch: long-press shows it without toggling the chip
   b.addEventListener('pointerenter', e => { if(e.pointerType === 'mouse') showTip(b, t); });
   b.addEventListener('pointerleave', e => { if(e.pointerType === 'mouse') hideTip(); });
@@ -1265,8 +1305,8 @@ function pressKey(m){
   if(DIFF[diff].lock) locked = true;
   if(sel.includes(m)) sel = sel.filter(x => x !== m);
   else if(sel.length < chord.notes.length) sel.push(m);
-  else { setMsg(`最多选 ${chord.notes.length} 个音，先点掉一个再选。`, true); return; }
-  setMsg(sel.length === chord.notes.length ? '选够了，按“提交”。' : `已选 ${sel.length} / ${chord.notes.length}`);
+  else { setMsg(L(`最多选 ${chord.notes.length} 个音，先点掉一个再选。`, `${chord.notes.length} notes max. Remove one first.`), true); return; }
+  setMsg(sel.length === chord.notes.length ? L('选够了，按“提交”。', 'All picked. Press “Submit”.') : L(`已选 ${sel.length} / ${chord.notes.length}`, `${sel.length} / ${chord.notes.length} picked`));
   renderGrid(); renderAll();
 }
 // ---------- keyboard (Mac layout, by physical key so the Chinese IME doesn't get in the way) ----------
@@ -1282,7 +1322,7 @@ function kbClamp(){
 }
 function shiftOctave(d){
   const before = kbBase; kbBase += d * 12; kbClamp(); renderKeys();
-  setMsg(kbBase === before ? (d < 0 ? '已经是最低的八度了。' : '已经是最高的八度了。') : `键位移到 ${noteName(kbBase)} – ${noteName(Math.min(DIFF[diff].hi, kbBase + 17))}`);
+  setMsg(kbBase === before ? (d < 0 ? L('已经是最低的八度了。', 'Already at the lowest octave.') : L('已经是最高的八度了。', 'Already at the highest octave.')) : L('键位移到 ', 'Keys now cover ') + `${noteName(kbBase)} – ${noteName(Math.min(DIFF[diff].hi, kbBase + 17))}`);
 }
 function openHelp(){ const d = $('helpDlg'); if(d.open) d.close(); else d.showModal(); }
 $('helpLink').onclick = openHelp;
@@ -1303,7 +1343,7 @@ document.addEventListener('keydown', e => {
     if(code === 'KeyI'){
       e.preventDefault();
       const i = INSTRUMENTS.indexOf(inst); setInst(INSTRUMENTS[(i + 1) % INSTRUMENTS.length].id);
-      (prog ? pMsg : setMsg)('音色：' + inst.name); return;
+      (prog ? pMsg : setMsg)(L('音色：', 'Instrument: ') + L(inst.name, inst.en)); return;
     }
     if(code === 'KeyS'){ e.preventDefault(); $('statsBtn').click(); return; }
     if(code === 'Backspace'){ e.preventDefault(); if(prog){ if(!P.over){ P.cur = []; progRender(); } } else if(sel.length && !over){ $('clearBtn').click(); } return; }
@@ -1327,7 +1367,7 @@ document.addEventListener('keydown', e => {
   if(code === 'Backspace'){
     e.preventDefault();
     if(prog){ if(P.cur.length && !P.over){ P.cur.pop(); progRender(); } }
-    else if(sel.length && !over){ sel.pop(); setMsg(sel.length ? `已选 ${sel.length} / ${chord.notes.length}` : ''); renderGrid(); renderAll(); }
+    else if(sel.length && !over){ sel.pop(); setMsg(sel.length ? L(`已选 ${sel.length} / ${chord.notes.length}`, `${sel.length} / ${chord.notes.length} picked`) : ''); renderGrid(); renderAll(); }
     return;
   }
   if(prog){
@@ -1340,7 +1380,7 @@ document.addEventListener('keydown', e => {
   if(off >= 0){
     e.preventDefault();
     const m = kbBase + off;
-    if(m > DIFF[diff].hi || m < DIFF[diff].lo){ setMsg('这个键超出了琴键范围，按 Z 降一个八度。', true); return; }
+    if(m > DIFF[diff].hi || m < DIFF[diff].lo){ setMsg(L('这个键超出了琴键范围，按 Z 降一个八度。', 'That key is off the keyboard. Press Z to go down an octave.'), true); return; }
     pressKey(m);
   }
 });
@@ -1349,7 +1389,7 @@ let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTime
 // ---------- mode ----------
 let MODE = store.get('mode', 'single') === 'prog' ? 'prog' : 'single';
 function setMode(m){
-  if(m === 'prog' && VS.room){ setMsg('对战中只能玩单个和弦，先离开房间再切换。', true); return; }
+  if(m === 'prog' && VS.room){ setMsg(L('对战中只能玩单个和弦，先离开房间再切换。', 'Versus is single-chord only. Leave the room to switch.'), true); return; }
   MODE = m; store.set('mode', m); applyMode();
 }
 function applyMode(){
@@ -1357,8 +1397,8 @@ function applyMode(){
   document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === MODE));
   $('singleStage').hidden = prog; $('progStage').hidden = !prog;
   $('typeBox').hidden = prog; $('vsBox').hidden = prog;
-  $('modeNote').textContent = prog ? '先告诉你调，听一串和弦，用级数猜出整条进行' : '';
-  document.querySelector('h1 small').textContent = prog ? '听一串和弦，猜出整条进行' : '听一遍，在琴键上找出它';
+  $('modeNote').textContent = prog ? L('先告诉你调，听一串和弦，用级数猜出整条进行', 'You get the key, hear a few chords, and name the progression in Roman numerals') : '';
+  document.querySelector('h1 small').textContent = prog ? L('听一串和弦，猜出整条进行', 'Hear a progression, name every chord') : L('听一遍，在琴键上找出它', 'Hear a chord, find it on the keys');
   if(prog && !P.seq) progNew();
   renderAll();
 }
@@ -1415,7 +1455,7 @@ function progNew(){
   P.key = rand(12); P.tries = []; P.cur = []; P.over = false; P.solvedAt = P.seq.map(() => null); P.solvedMs = P.seq.map(() => null); P.start = performance.now();
   P.voices = voiceProg(P.key, P.seq);
   $('pResult').hidden = true; $('pAct').hidden = false;
-  pMsg('先听主和弦找到调性，再播放和弦进行。');
+  pMsg(L('先听主和弦找到调性，再播放和弦进行。', 'Play the tonic to find the key, then play the progression.'));
   progRender();
 }
 // bass on the root in the low register, upper voices in close position moving as little as possible
@@ -1451,19 +1491,19 @@ function progEval(guess){
 }
 function progRender(flipRow){
   const n = P.seq ? P.seq.length : 0, g = $('pGrid');
-  $('pKey').innerHTML = P.seq ? `调：<b>${KEYN[P.key]} 大调</b> · ${n} 个和弦` : '';
+  $('pKey').innerHTML = P.seq ? L(`调：<b>${KEYN[P.key]} 大调</b> · ${n} 个和弦`, `Key: <b>${KEYN[P.key]} major</b> · ${n} chords`) : '';
   g.innerHTML = '';
   for(let r = 0; r < MAX_TRIES && P.seq; r++){
     const row = document.createElement('div'); row.className = 'prow'; row.style.setProperty('--n', n);
     const t = P.tries[r], live = r === P.tries.length && !P.over;
-    if(t){ row.classList.add('done'); row.title = '点击播放这一行'; row.onclick = () => playVoices(voiceProg(P.key, t.guess)); }
+    if(t){ row.classList.add('done'); row.title = L('点击播放这一行', 'Click to play this row'); row.onclick = () => playVoices(voiceProg(P.key, t.guess)); }
     for(let i = 0; i < n; i++){
       const c = document.createElement('div'); c.className = 'pcell';
       const v = t ? t.guess[i] : live ? P.cur[i] : null;
       if(v){
         c.innerHTML = `<span></span><small></small>`; c.firstChild.textContent = v; c.lastChild.textContent = rnName(P.key, v);
         if(t){ c.classList.add(t.res[i]); if(r === flipRow){ c.classList.add('flip'); c.style.animationDelay = (i * 0.12) + 's'; } }
-        else { c.classList.add('filled'); c.title = '点击去掉'; c.onclick = () => { P.cur.splice(i, 1); progRender(); }; }
+        else { c.classList.add('filled'); c.title = L('点击去掉', 'Click to remove'); c.onclick = () => { P.cur.splice(i, 1); progRender(); }; }
       }
       row.appendChild(c);
     }
@@ -1483,8 +1523,8 @@ function progRender(flipRow){
     b.onclick = () => {
       playVoices(voiceProg(P.key, [r]));
       if(!P.seq || P.over) return;
-      if(P.cur.length >= P.seq.length){ pMsg(`这条进行只有 ${P.seq.length} 个和弦，先点掉一个再选。`, true); return; }
-      P.cur.push(r); pMsg(P.cur.length === P.seq.length ? '选够了，按“提交”。' : `已选 ${P.cur.length} / ${P.seq.length}`);
+      if(P.cur.length >= P.seq.length){ pMsg(L(`这条进行只有 ${P.seq.length} 个和弦，先点掉一个再选。`, `This progression has only ${P.seq.length} chords. Remove one first.`), true); return; }
+      P.cur.push(r); pMsg(P.cur.length === P.seq.length ? L('选够了，按“提交”。', 'All picked. Press “Submit”.') : L(`已选 ${P.cur.length} / ${P.seq.length}`, `${P.cur.length} / ${P.seq.length} picked`));
       progRender();
     };
     pal.appendChild(b);
@@ -1496,7 +1536,7 @@ function progRender(flipRow){
 }
 function progSubmit(){
   if(!P.seq || P.over) return;
-  if(P.cur.length !== P.seq.length){ pMsg(`需要选 ${P.seq.length} 个和弦，现在选了 ${P.cur.length} 个。`, true); return; }
+  if(P.cur.length !== P.seq.length){ pMsg(L(`需要选 ${P.seq.length} 个和弦，现在选了 ${P.cur.length} 个。`, `Pick ${P.seq.length} chords. You have ${P.cur.length}.`), true); return; }
   const guess = P.cur.slice(), res = progEval(guess);
   P.tries.push({guess, res}); P.cur = [];
   res.forEach((x, i) => { if(x === 'ok' && P.solvedAt[i] == null){ P.solvedAt[i] = P.tries.length; P.solvedMs[i] = performance.now() - P.start; } });
@@ -1504,7 +1544,7 @@ function progSubmit(){
   progRender(P.tries.length - 1);
   if(won) progFinish(true);
   else if(P.tries.length >= MAX_TRIES) progFinish(false);
-  else pMsg(`还剩 ${MAX_TRIES - P.tries.length} 次机会。`);
+  else pMsg(L(`还剩 ${MAX_TRIES - P.tries.length} 次机会。`, `${MAX_TRIES - P.tries.length} tries left.`));
 }
 function progFinish(won){
   P.over = true;
@@ -1521,10 +1561,10 @@ function progFinish(won){
   bump(pd, 'game', won, P.tries.length, ms);
   P.seq.forEach((r, i) => bump(pd.rn, r, P.solvedAt[i] != null, P.solvedAt[i], P.solvedMs[i]));
   store.set('statsByDiff', byDiff);
-  const praise = ['一次就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'];
-  pMsg(won ? praise[P.tries.length - 1] : '这次没猜中，答案是：');
+  const praise = L(['一次就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'], ['Got it in one!','Beautiful!','Very good!','Nice!','Phew, close one.','Last try, nailed it!']);
+  pMsg(won ? praise[P.tries.length - 1] : L('这次没猜中，答案是：', 'Not this time. The answer was:'));
   $('pAnsRn').textContent = P.seq.join(' – ');
-  $('pAnsNames').textContent = `${KEYN[P.key]} 大调 · ` + P.seq.map(r => rnName(P.key, r)).join(' – ');
+  $('pAnsNames').textContent = L(`${KEYN[P.key]} 大调 · `, `${KEYN[P.key]} major · `) + P.seq.map(r => rnName(P.key, r)).join(' – ');
   $('pResult').hidden = false; $('pResult').classList.toggle('win', won); $('pAct').hidden = true;
   if(won){
     celebrate(ps.streak >= 3 ? 1.6 : 1);
@@ -1553,7 +1593,7 @@ function recordType(id, won, n, ms){
 // per-difficulty records (added later; older games only live in the totals above)
 const byDiff = store.get('statsByDiff', {});
 byDiff.single = byDiff.single || {}; byDiff.prog = byDiff.prog || {};
-const DIFF_ZH = {easy:'简单', normal:'普通', hard:'困难', expert:'大师'};
+const DIFF_ZH = {easy:'简单', normal:'普通', hard:'困难', expert:'大师'}, DIFF_EN = {easy:'Easy', normal:'Normal', hard:'Hard', expert:'Master'};
 function bump(map, key, won, n, ms){
   const d = map[key] || (map[key] = {n:0, won:0, tries:0, dist:[0,0,0,0,0,0,0]});
   d.n++;
@@ -1566,53 +1606,54 @@ const sumRows = rows => rows.reduce((a, r) => ({n: a.n + r.n, won: a.won + r.won
 function renderHeaderStats(){
   const S = MODE === 'prog' ? progStats : stats;
   $('sLine').innerHTML = S.played
-    ? `<b>${S.played}</b> 局 · 胜率 <b>${Math.round(S.won / S.played * 100)}%</b> · <span class="${S.streak >= 3 ? 'hot' : ''}">连胜 <b>${S.streak}</b></span>（最佳 ${S.best}）`
-    : '还没有战绩';
+    ? L(`<b>${S.played}</b> 局 · 胜率 <b>${Math.round(S.won / S.played * 100)}%</b> · <span class="${S.streak >= 3 ? 'hot' : ''}">连胜 <b>${S.streak}</b></span>（最佳 ${S.best}）`,
+        `<b>${S.played}</b> played · <b>${Math.round(S.won / S.played * 100)}%</b> won · <span class="${S.streak >= 3 ? 'hot' : ''}">streak <b>${S.streak}</b></span> (best ${S.best})`)
+    : L('还没有战绩', 'No games yet');
   const tt = MODE === 'prog' ? null : titleFor(stats.best); $('sTitle').hidden = !tt; $('sTitle').textContent = tt || '';
 }
 let statsTab = 'single';
 function distHtml(dist){
   const max = Math.max(1, ...dist);
-  return '<div class="dist">' + dist.map((v, i) => `<div class="r"><span>${i < 6 ? '第 ' + (i + 1) + ' 次' : '没猜中'}</span><span><span class="bar${i < 6 ? ' win' : ''}" style="display:inline-block;width:${Math.max(6, v / max * 100)}%">${v}</span></span></div>`).join('') + '</div>';
+  return '<div class="dist">' + dist.map((v, i) => `<div class="r"><span>${i < 6 ? L('第 ' + (i + 1) + ' 次', 'Try ' + (i + 1)) : L('没猜中', 'Missed')}</span><span><span class="bar${i < 6 ? ' win' : ''}" style="display:inline-block;width:${Math.max(6, v / max * 100)}%">${v}</span></span></div>`).join('') + '</div>';
 }
 function tableHtml(rows, head, noWeak){
   const played = rows.filter(r => r.n >= 3);
   const weak = !noWeak && played.length >= 2 ? played.reduce((a, b) => (b.won / b.n < a.won / a.n || (b.won / b.n === a.won / a.n && (b.won ? b.tries / b.won : 9) > (a.won ? a.tries / a.won : 9))) ? b : a) : null;
-  return `<table class="stbl"><thead><tr><th>${head}</th><th>局数</th><th>猜对率</th><th>平均几次</th><th>平均用时</th></tr></thead><tbody>` +
+  return `<table class="stbl"><thead><tr><th>${head}</th><th>${L('局数', 'Games')}</th><th>${L('猜对率', 'Solved')}</th><th>${L('平均几次', 'Avg tries')}</th><th>${L('平均用时', 'Avg time')}</th></tr></thead><tbody>` +
     rows.map(r => { const pct = Math.round(r.won / r.n * 100);
       return `<tr${r === weak && pct < 100 ? ' class="weak"' : ''}><td>${r.label}</td><td>${r.n}</td><td>${pct}%<span class="meter"><i style="width:${pct}%"></i></span></td><td>${r.won ? (r.tries / r.won).toFixed(1) : '–'}</td><td>${avgTime(r)}</td></tr>`; }).join('') +
     '</tbody></table>';
 }
 let statsDiff = 'all';
-const typeLabel = t => t.zh + (t.sym ? ' <span class="diffnote">' + (t.chip || t.sym).trim() + '</span>' : '');
-const sumHtml = (t, best) => `<div class="ssum"><div><b>${t.n}</b><span>局数</span></div><div><b>${Math.round(t.won / t.n * 100)}%</b><span>猜对率</span></div><div><b>${t.won ? (t.tries / t.won).toFixed(1) : '–'}</b><span>平均几次猜对</span></div><div><b>${avgTime(t)}</b><span>平均猜中用时</span></div>${best == null ? '' : `<div><b>${best}</b><span>最长连胜</span></div>`}</div>`;
+const typeLabel = t => tz(t) + (t.sym ? ' <span class="diffnote">' + (t.chip || t.sym).trim() + '</span>' : '');
+const sumHtml = (t, best) => `<div class="ssum"><div><b>${t.n}</b><span>${L('局数', 'Games')}</span></div><div><b>${Math.round(t.won / t.n * 100)}%</b><span>${L('猜对率', 'Solved')}</span></div><div><b>${t.won ? (t.tries / t.won).toFixed(1) : '–'}</b><span>${L('平均几次猜对', 'Avg tries to solve')}</span></div><div><b>${avgTime(t)}</b><span>${L('平均猜中用时', 'Avg time to solve')}</span></div>${best == null ? '' : `<div><b>${best}</b><span>${L('最长连胜', 'Best streak')}</span></div>`}</div>`;
 function diffTable(game, total){
-  const rows = Object.keys(DIFF_ZH).map(d => ({label: DIFF_ZH[d], ...game(d)})).filter(r => r.n);
+  const rows = Object.keys(DIFF_ZH).map(d => ({label: L(DIFF_ZH, DIFF_EN)[d], ...game(d)})).filter(r => r.n);
   const rest = total - rows.reduce((a, r) => a + r.n, 0);
-  return '<h5>各难度对比</h5>' + (rows.length ? tableHtml(rows, '难度', true) : '')
-    + (rest > 0 ? `<span class="diffnote">另有 ${rest} 局是这次更新前玩的，没记难度，只算在“全部”里。</span>` : '');
+  return `<h5>${L('各难度对比', 'By difficulty')}</h5>` + (rows.length ? tableHtml(rows, L('难度', 'Difficulty'), true) : '')
+    + (rest > 0 ? `<span class="diffnote">${L(`另有 ${rest} 局是这次更新前玩的，没记难度，只算在“全部”里。`, `${rest} earlier games were played before difficulty was tracked and only count under “All”.`)}</span>` : '');
 }
 function renderStats(){
   document.querySelectorAll('#statsTabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === statsTab));
   document.querySelectorAll('#statsDiffs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === statsDiff));
-  const body = $('statsBody'), all = statsDiff === 'all', dz = all ? '' : DIFF_ZH[statsDiff];
+  const body = $('statsBody'), all = statsDiff === 'all', dz = all ? '' : L(DIFF_ZH, DIFF_EN)[statsDiff];
   if(statsTab === 'single'){
     const src = all ? typeStats : (byDiff.single[statsDiff] || {});
     const rows = TYPES.filter(t => src[t.id] && src[t.id].n).map(t => ({label: typeLabel(t), ...src[t.id]})).sort((a, b) => b.n - a.n);
-    if(!rows.length){ body.innerHTML = `<div class="sempty">还没有${dz}难度的记录。玩几局单个和弦，这里会按和弦类型统计猜对率和平均用几次猜对。</div>`; return; }
+    if(!rows.length){ body.innerHTML = `<div class="sempty">${L(`还没有${dz}难度的记录。玩几局单个和弦，这里会按和弦类型统计猜对率和平均用几次猜对。`, `No ${dz ? dz + ' ' : ''}games yet. Play some single chords and this shows your solve rate and average tries for each chord type.`)}</div>`; return; }
     const tot = sumRows(rows);
     body.innerHTML = sumHtml(tot, all ? stats.best : null) + distHtml(tot.dist)
       + (all ? diffTable(d => sumRows(Object.values(byDiff.single[d] || {})), tot.n) : '')
-      + (all ? '<h5>各和弦类型</h5>' : '') + tableHtml(rows, '和弦类型');
+      + (all ? `<h5>${L('各和弦类型', 'By chord type')}</h5>` : '') + tableHtml(rows, L('和弦类型', 'Chord type'));
   } else {
     const ps = progStats, pd = byDiff.prog[statsDiff];
     const g = all ? {n: ps.played, won: ps.won, tries: ps.dist.slice(0, 6).reduce((a, v, i) => a + v * (i + 1), 0), dist: ps.dist, ms: ps.ms, mn: ps.mn} : (pd && pd.game) || {n:0};
-    if(!g.n){ body.innerHTML = `<div class="sempty">还没有${dz}难度的记录。玩几局和弦进行，这里会统计每个级数和弦的猜对率和平均用几次猜对。</div>`; return; }
+    if(!g.n){ body.innerHTML = `<div class="sempty">${L(`还没有${dz}难度的记录。玩几局和弦进行，这里会统计每个级数和弦的猜对率和平均用几次猜对。`, `No ${dz ? dz + ' ' : ''}games yet. Play some progressions and this shows your solve rate and average tries for each Roman-numeral chord.`)}</div>`; return; }
     const src = all ? ps.rn : pd.rn;
     const rows = RN_ORDER.filter(r => src[r] && src[r].n).map(r => ({label: r, ...src[r]})).sort((a, b) => b.n - a.n);
     body.innerHTML = sumHtml(g, all ? ps.best : null) + distHtml(g.dist)
       + (all ? diffTable(d => (byDiff.prog[d] && byDiff.prog[d].game) || {n:0}, g.n) : '')
-      + (all ? '<h5>各级数和弦</h5>' : '') + tableHtml(rows, '级数和弦');
+      + (all ? `<h5>${L('各级数和弦', 'By chord degree')}</h5>` : '') + tableHtml(rows, L('级数和弦', 'Chord'));
   }
 }
 $('sLine').onclick = () => $('statsBtn').click();
@@ -1622,7 +1663,7 @@ $('statsDlg').addEventListener('click', e => { if(e.target === $('statsDlg')) $(
 document.querySelectorAll('#statsTabs button').forEach(b => b.onclick = () => { statsTab = b.dataset.t; renderStats(); });
 document.querySelectorAll('#statsDiffs button').forEach(b => b.onclick = () => { statsDiff = b.dataset.d; renderStats(); });
 $('statsReset').onclick = () => {
-  if(!confirm(statsTab === 'single' ? '清空单个和弦的统计？' : '清空和弦进行的统计？')) return;
+  if(!confirm(statsTab === 'single' ? L('清空单个和弦的统计？', 'Clear single-chord stats?') : L('清空和弦进行的统计？', 'Clear progression stats?'))) return;
   byDiff[statsTab] = {}; store.set('statsByDiff', byDiff);
   if(statsTab === 'single'){ Object.keys(typeStats).forEach(k => delete typeStats[k]); store.set('typeStats', typeStats); }
   else { Object.assign(progStats, {played:0, won:0, streak:0, best:0, dist:[0,0,0,0,0,0,0], rn:{}}); store.set('progStats', progStats); }
@@ -1650,13 +1691,13 @@ function others(){
   return VS.room.peers().filter(p => !p.sameTab && p.kind === 'viewer' && p.presence && p.presence.v === 1);
 }
 function hostNextRound(){
-  if(!pool().length){ setMsg('请至少选一种和弦类型。', true); return; }
+  if(!pool().length){ setMsg(L('请至少选一种和弦类型。', 'Pick at least one chord type.'), true); return; }
   VS.round++; VS.seed = Math.floor(Math.random()*2**31);
   beginRound(VS.seed);
 }
 function vsFinish(won){
   VS.ms = performance.now() - VS.startMs;
-  setMsg(won ? `猜对了！用了 ${tries.length} 次，${(VS.ms/1000).toFixed(1)} 秒。等对手结束…` : '这局没猜中，等对手结束…');
+  setMsg(won ? L(`猜对了！用了 ${tries.length} 次，${(VS.ms/1000).toFixed(1)} 秒。等对手结束…`, `Solved in ${tries.length} ${tries.length > 1 ? 'tries' : 'try'}, ${(VS.ms/1000).toFixed(1)}s. Waiting for the others…`) : L('这局没猜中，等对手结束…', 'Missed this one. Waiting for the others…'));
   if(won){ celebrate(1); fanfare(false); const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate'); }
   $('reward').hidden = true; $('result').classList.toggle('win', won); $('result').classList.remove('milestone');
   $('rName').textContent = chordTitle(chord);
@@ -1691,40 +1732,40 @@ function vsCheckRound(){
   const mine = field[0].pts;
   const winners = field.filter(f => f.solved).sort((a,b) => b.pts - a.pts || a.ms - b.ms);
   let line;
-  if(!winners.length){ line = '这一局谁都没猜中，平局，都是 0 分。'; VS.hist.unshift(`第 ${VS.round} 局：平局`); }
+  if(!winners.length){ line = L('这一局谁都没猜中，平局，都是 0 分。', 'Nobody solved it. A draw, 0 points each.'); VS.hist.unshift(L(`第 ${VS.round} 局：平局`, `Round ${VS.round}: draw`)); }
   else {
     const w = winners[0];
     VS.wins[w.key] = (VS.wins[w.key] || 0) + 1;
     VS.board[w.key].wins++;
-    VS.hist.unshift(`第 ${VS.round} 局：${VS.board[w.key].name}${w.key === 'me' ? '（你）' : ''} +${w.pts}（${w.n} 次 · ${(w.ms/1000).toFixed(1)} 秒）`);
-    line = (w.key === 'me' ? '🏆 这一局你赢了！' : `这一局 ${nameOf(ps.find(p => p.peer === w.key))} 赢了。`) + ` 你得了 ${mine} 分。`;
+    VS.hist.unshift(L(`第 ${VS.round} 局：${VS.board[w.key].name}${w.key === 'me' ? '（你）' : ''} +${w.pts}（${w.n} 次 · ${(w.ms/1000).toFixed(1)} 秒）`, `Round ${VS.round}: ${VS.board[w.key].name}${w.key === 'me' ? ' (you)' : ''} +${w.pts} (${w.n} ${w.n > 1 ? 'tries' : 'try'} · ${(w.ms/1000).toFixed(1)}s)`));
+    line = (w.key === 'me' ? L('🏆 这一局你赢了！', '🏆 You won this round!') : L(`这一局 ${nameOf(ps.find(p => p.peer === w.key))} 赢了。`, `${nameOf(ps.find(p => p.peer === w.key))} won this round.`)) + L(` 你得了 ${mine} 分。`, ` You scored ${mine}.`);
     if(w.key === 'me') celebrate(2);
   }
-  setMsg(line + (VS.host ? ' 点“下一局”继续。' : ' 等房主开始下一局。'));
+  setMsg(line + (VS.host ? L(' 点“下一局”继续。', ' Press “Next round” to continue.') : L(' 等房主开始下一局。', ' Waiting for the host to start the next round.')));
   vsRender();
 }
 const cleanNick = v => String(v || '').replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '').trim().slice(0, 12);
-function myNick(){ return cleanNick($('vsNick').value) || '玩家'; }
+function myNick(){ return cleanNick($('vsNick').value) || L('玩家', 'Player'); }
 function nameOf(p){
-  if(!p) return '对手';
+  if(!p) return L('对手', 'Opponent');
   const n = cleanNick(p.presence.nick);
-  return (n || '对手') + (p.presence.role === 'host' ? '（房主）' : '');
+  return (n || L('对手', 'Opponent')) + (p.presence.role === 'host' ? L('（房主）', ' (host)') : '');
 }
 function vsRender(){
   const live = !!VS.room;
   $('vsIdle').hidden = live; $('vsLive').hidden = !live;
   $('opps').hidden = !live; $('vsBoard').hidden = !live;
   document.querySelector('.settings').classList.toggle('locked', live && (!VS.host || (VS.round > 0 && !over)));
-  if(!live){ $('nextBtn').textContent = '下一题'; $('nextBtn').disabled = false; return; }
+  if(!live){ $('nextBtn').textContent = L('下一题', 'Next'); $('nextBtn').disabled = false; return; }
   const ps = others();
   $('vsRoom').textContent = VS.code;
   const hostHere = VS.host || ps.some(p => p.presence.role === 'host');
-  $('vsStatus').innerHTML = VS.offline ? '<span class="dot"></span>正在重连…' : !hostHere ? '<span class="dot"></span>房主已离开' :
-    ps.length ? '' : '<span class="dot"></span>等待对手加入…';
+  $('vsStatus').innerHTML = VS.offline ? '<span class="dot"></span>' + L('正在重连…', 'Reconnecting…') : !hostHere ? '<span class="dot"></span>' + L('房主已离开', 'The host left') :
+    ps.length ? '' : '<span class="dot"></span>' + L('等待对手加入…', 'Waiting for an opponent…');
   renderBoard(ps);
   $('vsStart').hidden = !(VS.host && VS.round === 0);
   $('vsStart').disabled = !ps.length;
-  $('nextBtn').textContent = VS.host ? '下一局' : '等待房主';
+  $('nextBtn').textContent = VS.host ? L('下一局', 'Next round') : L('等待房主', 'Waiting for host');
   $('nextBtn').disabled = !VS.host;
   const box = $('opps'); box.innerHTML = '';
   if(!ps.length) return;
@@ -1774,13 +1815,13 @@ function renderBoard(ps){
     el.className = 'lbr r' + (r.b.pts > 0 ? i + 1 : 0) + (r.k === 'me' ? ' me' : '') + (r.gone ? ' gone' : '');
     el.querySelector('.rk').textContent = r.b.pts > 0 && i === 0 ? '👑' : i + 1;
     const nm = el.querySelector('.nm'); nm.textContent = r.name;
-    const tag = r.k === 'me' ? '你' : r.gone ? '已离开' : '';
+    const tag = r.k === 'me' ? L('你', 'you') : r.gone ? L('已离开', 'left') : '';
     if(tag){ const t = document.createElement('small'); t.textContent = tag; nm.appendChild(t); }
     el.querySelector('.wins').innerHTML = r.b.wins ? `🏆 <b>${r.b.wins}</b>` : '';
     el.style.setProperty('--w', (r.b.pts / top * 100).toFixed(1) + '%');
     const l = r.b.last;
-    el.querySelector('.lastc').innerHTML = l ? (l.solved ? `上局 <b>+${l.pts}</b><i> · ${l.n} 次 · ${(l.ms/1000).toFixed(1)}s</i>` : '上局 没猜中') : '';
-    el.title = l ? (l.solved ? `上一局 +${l.pts}：${l.n} 次猜对，${(l.ms/1000).toFixed(1)} 秒` : '上一局没猜中') : '';
+    el.querySelector('.lastc').innerHTML = l ? (l.solved ? L(`上局 <b>+${l.pts}</b><i> · ${l.n} 次 · ${(l.ms/1000).toFixed(1)}s</i>`, `Last <b>+${l.pts}</b><i> · ${l.n} ${l.n > 1 ? 'tries' : 'try'} · ${(l.ms/1000).toFixed(1)}s</i>`) : L('上局 没猜中', 'Last: missed')) : '';
+    el.title = l ? (l.solved ? L(`上一局 +${l.pts}：${l.n} 次猜对，${(l.ms/1000).toFixed(1)} 秒`, `Last round +${l.pts}: solved in ${l.n}, ${(l.ms/1000).toFixed(1)}s`) : L('上一局没猜中', 'Missed last round')) : '';
     if(el._pts !== r.b.pts){
       const from = el._pts, to = r.b.pts, sc = el.querySelector('.sc'), t0 = performance.now();
       el._pts = to;
@@ -1797,7 +1838,7 @@ function renderBoard(ps){
     el.style.transition = 'none'; el.style.transform = `translateY(${dy}px)`;
     requestAnimationFrame(() => { el.style.transition = ''; el.style.transform = ''; });
   });
-  $('vsRound').textContent = VS.round ? `第 ${VS.round} 局` : '';
+  $('vsRound').textContent = VS.round ? L(`第 ${VS.round} 局`, `Round ${VS.round}`) : '';
 }
 const myPeerId = () => { const m = VS.room && VS.room.peers().find(p => p.sameTab); return m ? m.peer : ''; };
 // If the host is gone for a few seconds, the remaining player with the smallest id takes over.
@@ -1819,7 +1860,7 @@ function vsTakeOver(){
   const myId = myPeerId();
   if(myId && ps.some(p => p.peer < myId)){ VS.hostT = setTimeout(vsTakeOver, 3000); return; }
   VS.host = true;
-  setMsg('房主离开了，你成为新房主。' + (VS.round === 0 ? '点“开始对战”。' : over ? '点“下一局”继续。' : ''));
+  setMsg(L('房主离开了，你成为新房主。', 'The host left. You are the new host.') + (VS.round === 0 ? L('点“开始对战”。', ' Press “Start”.') : over ? L('点“下一局”继续。', ' Press “Next round” to continue.') : ''));
   vsPublish(); vsRender();
 }
 function onRoomPeers(){
@@ -1867,20 +1908,20 @@ async function vsLost(e){
     catch(err){ e = err; }
   }
   if(VS.code !== code) return;
-  setMsg('和房间的连接断开了。', true); vsExit();
+  setMsg(L('和房间的连接断开了。', 'Lost the connection to the room.'), true); vsExit();
 }
 async function vsEnter(code, host){
   if(!VS.api) return;
-  $('vsNote').textContent = '正在进入房间…';
+  $('vsNote').textContent = L('正在进入房间…', 'Joining the room…');
   try{
     const room = await VS.api.join('vs-' + code);
     Object.assign(VS, {code, host, round:0, seed:0, scored:{}, wins:{me:0}, board:{}, hist:[], sawHost:host, offline:false});
     vsAttach(room);
-    if(host){ chord = null; tries = []; sel = []; over = false; renderGrid(); setMsg('房间已创建。把房间号发给对手，TA 加入后点“开始对战”。'); }
-    else setMsg('已加入，等房主开始…');
+    if(host){ chord = null; tries = []; sel = []; over = false; renderGrid(); setMsg(L('房间已创建。把房间号发给对手，TA 加入后点“开始对战”。', 'Room created. Send the code to your opponent, then press “Start” once they join.')); }
+    else setMsg(L('已加入，等房主开始…', 'Joined. Waiting for the host to start…'));
     renderAll(); vsPublish(); vsRender();
   }catch(e){
-    $('vsNote').textContent = e && e.code === 'not_permitted' ? '这个账号不能使用对战房间。' : '没能进入房间，请稍后再试。';
+    $('vsNote').textContent = e && e.code === 'not_permitted' ? L('这个账号不能使用对战房间。', 'This account can’t use versus rooms.') : L('没能进入房间，请稍后再试。', 'Couldn’t join the room. Try again later.');
   }
 }
 function vsExit(){
@@ -1894,7 +1935,7 @@ function vsExit(){
 $('vsCreate').onclick = () => vsEnter(makeCode(), true);
 $('vsJoin').onclick = () => {
   const c = $('vsCode').value.replace(/\D/g, '');
-  if(!/^\d{4}$/.test(c)){ $('vsNote').textContent = '房间号是 4 位数字。'; return; }
+  if(!/^\d{4}$/.test(c)){ $('vsNote').textContent = L('房间号是 4 位数字。', 'Room codes are 4 digits.'); return; }
   vsEnter(c, false);
 };
 $('vsCode').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('vsJoin').click(); } });
@@ -1902,16 +1943,16 @@ $('vsStart').onclick = () => { if(VS.host && VS.round === 0) hostNextRound(); vs
 $('vsLeave').onclick = vsExit;
 $('vsRoom').onclick = () => {
   const t = VS.code, el = $('vsRoom');
-  try{ navigator.clipboard.writeText(t).then(() => { el.textContent = '已复制'; setTimeout(() => { if(VS.code === t) el.textContent = t; }, 1200); }, () => {}); }catch(e){}
+  try{ navigator.clipboard.writeText(t).then(() => { el.textContent = L('已复制', 'Copied'); setTimeout(() => { if(VS.code === t) el.textContent = t; }, 1200); }, () => {}); }catch(e){}
 };
 (async () => {
   try{ $('vsNick').value = cleanNick(localStorage.getItem('chordle:nick')); }catch(e){}
   $('vsNick').addEventListener('input', () => { try{ localStorage.setItem('chordle:nick', cleanNick($('vsNick').value)); }catch(e){} });
   const setIdle = (ok, note) => { ['vsCreate','vsJoin','vsCode','vsNick'].forEach(id => $(id).disabled = !ok); $('vsNote').textContent = note; };
-  setIdle(false, '正在连接…');
+  setIdle(false, L('正在连接…', 'Connecting…'));
   let api = null;
   try{ api = window.claude && window.claude.use ? await window.claude.use('room') : null; }catch(e){ api = null; }
-  if(!api){ setIdle(false, window.CHORDLE_OFFLINE_NOTE || '这个打开方式不支持联机：需要登录 claude.ai，并且被邀请访问这个页面。'); return; }
+  if(!api){ setIdle(false, window.CHORDLE_OFFLINE_NOTE ? L(window.CHORDLE_OFFLINE_NOTE, 'Online play isn’t set up yet (the server has no Redis). You can still play solo.') : L('这个打开方式不支持联机：需要登录 claude.ai，并且被邀请访问这个页面。', 'Online play isn’t available here.')); return; }
   VS.api = api;
   setIdle(true, '');
 })();
@@ -1919,7 +1960,7 @@ $('vsRoom').onclick = () => {
 try{ loadSamples(); }catch(e){}
 {
   const sel = $('instSel');
-  INSTRUMENTS.forEach(i => { const o = document.createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
+  INSTRUMENTS.forEach(i => { const o = document.createElement('option'); o.value = i.id; o.textContent = L(i.name, i.en); sel.appendChild(o); });
   let saved = null; try{ saved = localStorage.getItem('chordle:inst'); }catch(e){}
   setInst(saved || 'piano');
   sel.addEventListener('change', () => {
@@ -1928,8 +1969,50 @@ try{ loadSamples(); }catch(e){}
     sel.blur();
   });
 }
+const STATIC_EN = {"听一个钢琴和弦，在琴键上找出它。可以单人玩，也可以开房间和朋友对战。": "Hear a piano chord and find it on the keys. Play solo or open a room and challenge friends.", "个人统计": "Your stats", "统计": "Stats", "音色": "Instrument", "查看详细统计": "See detailed stats", "设置": "Settings", "模式": "Mode", "单个和弦": "Single chord", "和弦进行": "Progression", "难度": "Difficulty", "简单": "Easy", "普通": "Normal", "困难": "Hard", "大师": "Master", "和弦类型": "Chord types", "鼠标悬停（手机上长按）可以看每种和弦的色彩听感。": "Hover over a type (long-press on phones) to see what it sounds like.", "全部三和弦": "All triads", "全部七和弦": "All 7ths", "全部色彩和弦": "All colour chords", "全部扩展和弦": "All extended", "全选": "Select all", "取消选择": "Clear", "对战": "Versus", "你的名字": "Your name", "创建房间": "Create room", "4 位房间号": "4-digit code", "房间号": "Room code", "加入": "Join", "房间": "Room", "点击复制房间号": "Click to copy the code", "开始对战": "Start", "离开": "Leave", "积分榜": "Scoreboard", "计分规则": "Scoring", "第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。": "Solving on try 1–6 scores 100, 80, 60, 45, 30 or 20, plus a speed bonus of up to +20 that drops by 1 every 6 seconds. A miss scores 0. The top scorer each round gets a win.", "播放和弦进行": "Play progression", "听主和弦": "Play tonic", "再听一遍": "Play again", "下一题": "Next", "清除": "Clear", "提交": "Submit", "放弃": "Give up", "完全正确": "Exactly right", "根音级数对，和弦性质不对": "Right degree, wrong quality", "不对": "Wrong", "播放和弦": "Play chord", "播放我的选择": "Play my notes", "对手进度": "Opponents", "颜色说明": "Colour key", "音名和位置都对": "Right note, right octave", "音名对，八度不对": "Right note, wrong octave", "不在和弦里": "Not in the chord", "快捷键指南": "Keyboard shortcuts", "关闭": "Close", "单个和弦：琴键（和 GarageBand 的“音乐键入”一样）": "Single chord: piano keys (same as GarageBand’s Musical Typing)", "键位整体降 / 升一个八度（琴键上的字母会跟着移动）": "Shift the keys down / up an octave (the letters on the piano follow)", "选级数和弦，每个按钮右上角标着对应的键": "Pick a chord; each button shows its key in the corner", "两种模式通用": "Both modes", "空格": "Space", "播放题目": "Play the question", "单个和弦：播放我选的音；和弦进行：听主和弦": "Single chord: play my notes · Progression: play the tonic", "提交；结束后进入下一题": "Submit, or go to the next question when done", "删掉最后一个": "Delete the last pick", "全部清除": "Clear all", "重听第几次的猜测": "Replay that guess", "难度：简单 / 普通 / 困难 / 大师": "Difficulty: Easy / Normal / Hard / Master", "切换单个和弦 / 和弦进行": "Switch between single chord and progression", "换下一个音色": "Next instrument", "打开个人统计": "Open your stats", "打开 / 关闭这份指南，": "Open / close this guide;", "关闭弹窗": "closes dialogs", "全部": "All", "统计只保存在这台设备的浏览器里。": "Stats are saved only in this browser.", "清空统计": "Clear stats", "按": "Press", "查看快捷键指南 ·": "for shortcuts ·", "点已提交的行可重听": "Click a submitted row to replay it", "乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）": "Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0)", "中文 / English": "中文 / English"};
+
+// static markup: translate text nodes and a few attributes by their original Chinese
+const I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'content'];
+function translateStatic(){
+  const tr = zh => LANG === 'en' ? STATIC_EN[zh] : zh;
+  const walk = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_TEXT);
+  for(let n; (n = walk.nextNode());){
+    if(n.parentNode && /^(SCRIPT|STYLE)$/.test(n.parentNode.nodeName)) continue;
+    if(n.__zh == null){ const k = n.nodeValue.trim(); if(!k || !(k in STATIC_EN)) continue; n.__zh = k; }
+    const t = tr(n.__zh); if(t == null) continue;
+    n.nodeValue = n.nodeValue.replace(/^(\s*)[\s\S]*?(\s*)$/, (m, a, b) => a + t + b);
+  }
+  document.querySelectorAll('[title],[placeholder],[aria-label],meta[name=description]').forEach(el => {
+    el.__zhA = el.__zhA || {};
+    I18N_ATTRS.forEach(a => {
+      if(!el.hasAttribute(a)) return;
+      if(el.__zhA[a] == null){ const v = el.getAttribute(a); if(!(v in STATIC_EN)) return; el.__zhA[a] = v; }
+      el.setAttribute(a, tr(el.__zhA[a]));
+    });
+  });
+}
+function applyLang(){
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+  document.documentElement.style.setProperty('--weak-label', LANG === 'en' ? '"weakest"' : '"最容易错"');
+  $('langLab').textContent = LANG === 'en' ? '中文' : 'EN';
+  translateStatic();
+  TYPES.forEach(t => { const b = $('type-' + t.id); if(b) chipLabel(b, t); });
+  [...$('instSel').options].forEach(o => { const i = INSTRUMENTS.find(x => x.id === o.value); if(i) o.textContent = L(i.name, i.en); });
+  applyMode();
+  if(P.seq) progRender();
+  if(chord){ renderGrid(); if(over){ $('rName').textContent = chordTitle(chord); $('rNotes').textContent = chordDesc(chord) + ' · ' + chord.notes.map(noteName).join(' '); } }
+  if($('statsDlg').open) renderStats();
+  if(VS.room) vsRender();
+}
+$('langBtn').onclick = () => {
+  LANG = LANG === 'en' ? 'zh' : 'en';
+  try{ localStorage.setItem('chordle:lang', LANG); }catch(e){}
+  setMsg(''); pMsg('');
+  applyLang();
+};
 beginRound(null);
 applyMode();
+applyLang();
 })();
 </script>
 
