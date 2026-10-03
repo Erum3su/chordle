@@ -335,7 +335,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <span><i style="background:var(--miss)"></i>不在和弦里</span>
     </div>
   </section>
-  <footer><span class="keys">空格 播放 · P 播放我的选择 · 回车 提交 · 退格 清除 · </span>点已提交的行可重听<br>乐器采样：tonejs-instruments（MIT）</footer>
+  <footer><span class="keys">空格 播放 · P 播放我的选择 · 回车 提交 · 退格 清除 · </span>点已提交的行可重听<br>乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）</footer>
 </div>
 
 <script>
@@ -453,6 +453,7 @@ function sampleNote(buffers, m, t, vel, dur){
 // electric piano and synth are built from oscillators.
 const INSTRUMENTS = [
   {id:'piano',   name:'钢琴'},
+  {id:'grand',   name:'音乐会大钢琴', notes:[30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90]},
   {id:'epiano',  name:'电钢琴',   synth:epianoNote},
   {id:'guitar',  name:'原声吉他', notes:[38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74]},
   {id:'nylon',   name:'尼龙吉他', notes:[35, 38, 42, 45, 49, 52, 55, 59, 63, 66, 69, 73, 76, 79, 82]},
