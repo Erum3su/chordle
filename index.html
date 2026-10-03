@@ -370,7 +370,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
     </div>
     <div class="sboard" id="vsBoard" hidden>
       <div class="lb" id="vsScore" role="list" aria-label="积分榜"></div>
-      <details class="rules"><summary>计分规则</summary>第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。</details>
+      <details class="rules"><summary>计分规则</summary>第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。猜音程只有 3 次机会，分别得 100、70、40 分。</details>
     </div>
   </section>
   <section class="settings" aria-label="设置">
@@ -565,6 +565,8 @@ const DIFF = {
   expert:{lo:36, hi:84, inv:true,  open:0.6, alt:0.7, color:true, plays:Infinity, extra:2, ext:true, note:'四个八度 · 加入扩展和弦与上方结构 · 5–6 个音'},
 };
 const MAX_TRIES = 6;
+// intervals are easier, so they get fewer tries
+const maxTries = () => MODE === 'interval' ? 3 : MAX_TRIES;
 const ALTS = [{sym:'♭9', iv:13}, {sym:'♯9', iv:15}, {sym:'♯11', iv:18, dropFifth:true}, {sym:'♭13', iv:20, dropFifth:true}];
 const DIFF_NOTE_EN = {
   easy:'Two octaves · root position and inversions · triads have 3 notes, 7th chords 4',
@@ -1009,8 +1011,8 @@ function submit(){
   renderGrid(tries.length-1);
   const won = res.every(r => r==='ok');
   if(won) finish(true);
-  else if(tries.length >= MAX_TRIES) finish(false);
-  else setMsg(L(`还剩 ${MAX_TRIES - tries.length} 次机会。`, `${MAX_TRIES - tries.length} tries left.`));
+  else if(tries.length >= maxTries()) finish(false);
+  else setMsg(L(`还剩 ${maxTries() - tries.length} 次机会。`, `${maxTries() - tries.length} tries left.`));
   renderAll();
   vsPublish();
 }
@@ -1024,7 +1026,7 @@ function finish(won){
   if(won){ ST.won++; ST.streak++; ST.best = Math.max(ST.best, ST.streak); } else ST.streak = 0;
   store.set(MODE === 'interval' ? 'istats' : 'stats', ST);
   const praise = L(['一耳朵就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'], ['Got it by ear in one!','Beautiful!','Very good!','Nice!','Phew, close one.','Last try, nailed it!']);
-  setMsg(won ? praise[tries.length-1] : (lost >= 2 ? L(`连胜 ${lost} 局到此为止，下一局重新开始！答案是：`, `Your ${lost}-game streak ends here. The answer was:`) : L('这次没猜中，答案是：', 'Not this time. The answer was:')));
+  setMsg(won ? praise[tries.length === maxTries() ? 5 : tries.length - 1] : (lost >= 2 ? L(`连胜 ${lost} 局到此为止，下一局重新开始！答案是：`, `Your ${lost}-game streak ends here. The answer was:`) : L('这次没猜中，答案是：', 'Not this time. The answer was:')));
   const ms = won && MODE === 'single' ? MILESTONES.find(m => m.n === ST.streak) : null;   // titles belong to single-chord mode
   const rw = $('reward'), res = $('result');
   res.classList.toggle('win', won); res.classList.toggle('milestone', !!ms);
@@ -1189,7 +1191,7 @@ function renderGrid(flipRow){
   if(!chord){ $('grid').innerHTML = ''; return; }
   const n = chord.notes.length, g = $('grid');
   g.innerHTML = '';
-  for(let r = 0; r < MAX_TRIES; r++){
+  for(let r = 0; r < maxTries(); r++){
     const row = document.createElement('div');
     row.className = 'guess'; row.style.setProperty('--n', n);
     const t = tries[r];
@@ -1725,9 +1727,9 @@ function renderHeaderStats(){
   const tt = MODE !== 'single' ? null : titleFor(stats.best); $('sTitle').hidden = !tt; $('sTitle').textContent = tt || '';
 }
 let statsTab = 'single';
-function distHtml(dist){
+function distHtml(dist, k = 6){
   const max = Math.max(1, ...dist);
-  return '<div class="dist">' + dist.map((v, i) => `<div class="r"><span>${i < 6 ? L('第 ' + (i + 1) + ' 次', 'Try ' + (i + 1)) : L('没猜中', 'Missed')}</span><span><span class="bar${i < 6 ? ' win' : ''}" style="display:inline-block;width:${Math.max(6, v / max * 100)}%">${v}</span></span></div>`).join('') + '</div>';
+  return '<div class="dist">' + dist.map((v, i) => i >= k && i < 6 ? '' : `<div class="r"><span>${i < 6 ? L('第 ' + (i + 1) + ' 次', 'Try ' + (i + 1)) : L('没猜中', 'Missed')}</span><span><span class="bar${i < 6 ? ' win' : ''}" style="display:inline-block;width:${Math.max(6, v / max * 100)}%">${v}</span></span></div>`).join('') + '</div>';
 }
 function tableHtml(rows, head, noWeak){
   const played = rows.filter(r => r.n >= 3);
@@ -1755,7 +1757,7 @@ function renderStats(){
     const rows = INTERVALS.filter(t => src[t.id] && src[t.id].n).map(t => ({label: ivName(t.n), ...src[t.id]}));
     if(!rows.length){ body.innerHTML = `<div class="sempty">${L(`还没有${dz}难度的记录。玩几局猜音程，这里会按音程统计猜对率和平均用几次猜对。`, `No ${dz ? dz + ' ' : ''}games yet. Play some intervals and this shows your solve rate and average tries for each interval.`)}</div>`; return; }
     const tot = sumRows(rows);
-    body.innerHTML = sumHtml(tot, all ? istats.best : null) + trendHtml() + distHtml(tot.dist)
+    body.innerHTML = sumHtml(tot, all ? istats.best : null) + trendHtml() + distHtml(tot.dist, 3)
       + (all ? diffTable(d => sumRows(Object.values(bd[d] || {})), tot.n) : '')
       + (all ? `<h5>${L('各音程', 'By interval')}</h5>` : '') + tableHtml(rows, L('音程', 'Interval'));
   } else if(statsTab === 'single'){
@@ -1856,10 +1858,10 @@ function vsFinish(won){
 }
 // Accuracy decides most of the score; speed only adds a small bonus.
 // Solved on try 1..6: 100 / 80 / 60 / 45 / 30 / 20, plus up to 20 for speed (minus 1 point every 3 s). Not solved: 0.
-const ACC_PTS = [100, 80, 60, 45, 30, 20];
+const ACC_PTS = [100, 80, 60, 45, 30, 20], IV_PTS = [100, 70, 40];
 function roundPoints(f){
   if(!f.solved) return 0;
-  return ACC_PTS[f.n - 1] + Math.max(0, Math.round(20 - f.ms / 6000));
+  return (MODE === 'interval' ? IV_PTS : ACC_PTS)[f.n - 1] + Math.max(0, Math.round(20 - f.ms / 6000));
 }
 function vsCheckRound(){
   const st = vsState();
@@ -1868,10 +1870,10 @@ function vsCheckRound(){
   if(!ps.length || ps.some(p => !p.presence.done)) return;
   VS.scored[VS.round] = true;
   const solved = st.solved;
-  const clampN = v => Math.max(1, Math.min(MAX_TRIES, v | 0));
+  const clampN = v => Math.max(1, Math.min(maxTries(), v | 0));
   const clampMs = v => Math.max(0, Math.min(3600000, Number(v) || 0));
   const field = [{key:'me', solved, n:st.tries, ms:VS.ms}].concat(ps.map(p => ({key:p.peer, solved:!!p.presence.solved,
-    n:clampN(Array.isArray(p.presence.rows) ? p.presence.rows.length : MAX_TRIES), ms:clampMs(p.presence.ms)})));
+    n:clampN(Array.isArray(p.presence.rows) ? p.presence.rows.length : maxTries()), ms:clampMs(p.presence.ms)})));
   field.forEach(f => {
     f.pts = roundPoints(f);
     const name = f.key === 'me' ? myNick() : nameOf(ps.find(p => p.peer === f.key));
@@ -1928,7 +1930,7 @@ function vsRender(){
     const mini = document.createElement('div'); mini.className = 'mini';
     const rows = same && Array.isArray(pr.rows) ? pr.rows : [];
     const n = same ? (pr.n | 0) || myN : myN;
-    for(let r = 0; r < MAX_TRIES; r++){
+    for(let r = 0; r < maxTries(); r++){
       const row = document.createElement('div'); row.className = 'mrow';
       const code = String(rows[r] || '');
       for(let i = 0; i < Math.min(n, 8); i++){
@@ -2125,7 +2127,7 @@ try{ loadSamples(); }catch(e){}
     sel.blur();
   });
 }
-const STATIC_EN = {"听一个钢琴和弦，在琴键上找出它。可以单人玩，也可以开房间和朋友对战。": "Hear a piano chord and find it on the keys. Play solo or open a room and challenge friends.", "个人统计": "Your stats", "统计": "Stats", "音色": "Instrument", "查看详细统计": "See detailed stats", "设置": "Settings", "模式": "Mode", "单个和弦": "Single chord", "和弦进行": "Progression", "难度": "Difficulty", "简单": "Easy", "普通": "Normal", "困难": "Hard", "大师": "Master", "和弦类型": "Chord types", "鼠标悬停（手机上长按）可以看每种和弦的色彩听感。": "Hover over a type (long-press on phones) to see what it sounds like.", "全部三和弦": "All triads", "全部七和弦": "All 7ths", "全部色彩和弦": "All colour chords", "全部扩展和弦": "All extended", "全选": "Select all", "取消选择": "Clear", "对战": "Versus", "你的名字": "Your name", "创建房间": "Create room", "4 位房间号": "4-digit code", "房间号": "Room code", "加入": "Join", "房间": "Room", "点击复制房间号": "Click to copy the code", "开始对战": "Start", "离开": "Leave", "积分榜": "Scoreboard", "计分规则": "Scoring", "第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。": "Solving on try 1–6 scores 100, 80, 60, 45, 30 or 20, plus a speed bonus of up to +20 that drops by 1 every 6 seconds. A miss scores 0. The top scorer each round gets a win.", "播放和弦进行": "Play progression", "听主和弦": "Play tonic", "再听一遍": "Play again", "下一题": "Next", "清除": "Clear", "提交": "Submit", "放弃": "Give up", "完全正确": "Exactly right", "根音级数对，和弦性质不对": "Right degree, wrong quality", "不对": "Wrong", "播放和弦": "Play chord", "播放我的选择": "Play my notes", "对手进度": "Opponents", "颜色说明": "Colour key", "音名和位置都对": "Right note, right octave", "音名对，八度不对": "Right note, wrong octave", "不在和弦里": "Not in the chord", "快捷键指南": "Keyboard shortcuts", "关闭": "Close", "单个和弦和猜音程：琴键（和 GarageBand 的“音乐键入”一样）": "Single chord and intervals: piano keys (same as GarageBand’s Musical Typing)", "键位整体降 / 升一个八度（琴键上的字母会跟着移动）": "Shift the keys down / up an octave (the letters on the piano follow)", "选级数和弦，每个按钮右上角标着对应的键": "Pick a chord; each button shows its key in the corner", "两种模式通用": "Both modes", "空格": "Space", "播放题目": "Play the question", "单个和弦：播放我选的音；和弦进行：听主和弦": "Single chord: play my notes · Progression: play the tonic", "提交；结束后进入下一题": "Submit, or go to the next question when done", "删掉最后一个": "Delete the last pick", "全部清除": "Clear all", "重听第几次的猜测": "Replay that guess", "难度：简单 / 普通 / 困难 / 大师": "Difficulty: Easy / Normal / Hard / Master", "切换单个和弦 / 和弦进行 / 猜音程": "Cycle single chord / progression / intervals", "猜音程": "Intervals", "换下一个音色": "Next instrument", "打开个人统计": "Open your stats", "打开 / 关闭这份指南，": "Open / close this guide;", "关闭弹窗": "closes dialogs", "全部": "All", "玩法": "Play", "单人": "Solo", "统计只保存在这台设备的浏览器里。": "Stats are saved only in this browser.", "清空统计": "Clear stats", "按": "Press", "查看快捷键指南 ·": "for shortcuts ·", "点已提交的行可重听": "Click a submitted row to replay it", "乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）": "Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0)", "中文 / English": "中文 / English"};
+const STATIC_EN = {"听一个钢琴和弦，在琴键上找出它。可以单人玩，也可以开房间和朋友对战。": "Hear a piano chord and find it on the keys. Play solo or open a room and challenge friends.", "个人统计": "Your stats", "统计": "Stats", "音色": "Instrument", "查看详细统计": "See detailed stats", "设置": "Settings", "模式": "Mode", "单个和弦": "Single chord", "和弦进行": "Progression", "难度": "Difficulty", "简单": "Easy", "普通": "Normal", "困难": "Hard", "大师": "Master", "和弦类型": "Chord types", "鼠标悬停（手机上长按）可以看每种和弦的色彩听感。": "Hover over a type (long-press on phones) to see what it sounds like.", "全部三和弦": "All triads", "全部七和弦": "All 7ths", "全部色彩和弦": "All colour chords", "全部扩展和弦": "All extended", "全选": "Select all", "取消选择": "Clear", "对战": "Versus", "你的名字": "Your name", "创建房间": "Create room", "4 位房间号": "4-digit code", "房间号": "Room code", "加入": "Join", "房间": "Room", "点击复制房间号": "Click to copy the code", "开始对战": "Start", "离开": "Leave", "积分榜": "Scoreboard", "计分规则": "Scoring", "第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。猜音程只有 3 次机会，分别得 100、70、40 分。": "Solving on try 1–6 scores 100, 80, 60, 45, 30 or 20, plus a speed bonus of up to +20 that drops by 1 every 6 seconds. A miss scores 0. The top scorer each round gets a win. Intervals have only 3 tries, scoring 100, 70 and 40.", "播放和弦进行": "Play progression", "听主和弦": "Play tonic", "再听一遍": "Play again", "下一题": "Next", "清除": "Clear", "提交": "Submit", "放弃": "Give up", "完全正确": "Exactly right", "根音级数对，和弦性质不对": "Right degree, wrong quality", "不对": "Wrong", "播放和弦": "Play chord", "播放我的选择": "Play my notes", "对手进度": "Opponents", "颜色说明": "Colour key", "音名和位置都对": "Right note, right octave", "音名对，八度不对": "Right note, wrong octave", "不在和弦里": "Not in the chord", "快捷键指南": "Keyboard shortcuts", "关闭": "Close", "单个和弦和猜音程：琴键（和 GarageBand 的“音乐键入”一样）": "Single chord and intervals: piano keys (same as GarageBand’s Musical Typing)", "键位整体降 / 升一个八度（琴键上的字母会跟着移动）": "Shift the keys down / up an octave (the letters on the piano follow)", "选级数和弦，每个按钮右上角标着对应的键": "Pick a chord; each button shows its key in the corner", "两种模式通用": "Both modes", "空格": "Space", "播放题目": "Play the question", "单个和弦：播放我选的音；和弦进行：听主和弦": "Single chord: play my notes · Progression: play the tonic", "提交；结束后进入下一题": "Submit, or go to the next question when done", "删掉最后一个": "Delete the last pick", "全部清除": "Clear all", "重听第几次的猜测": "Replay that guess", "难度：简单 / 普通 / 困难 / 大师": "Difficulty: Easy / Normal / Hard / Master", "切换单个和弦 / 和弦进行 / 猜音程": "Cycle single chord / progression / intervals", "猜音程": "Intervals", "换下一个音色": "Next instrument", "打开个人统计": "Open your stats", "打开 / 关闭这份指南，": "Open / close this guide;", "关闭弹窗": "closes dialogs", "全部": "All", "玩法": "Play", "单人": "Solo", "统计只保存在这台设备的浏览器里。": "Stats are saved only in this browser.", "清空统计": "Clear stats", "按": "Press", "查看快捷键指南 ·": "for shortcuts ·", "点已提交的行可重听": "Click a submitted row to replay it", "乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）": "Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0)", "中文 / English": "中文 / English"};
 
 // static markup: translate text nodes and a few attributes by their original Chinese
 const I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'content'];
