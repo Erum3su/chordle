@@ -79,6 +79,10 @@ button.inst::after{display:none}
 .sdlg-foot{display:flex;justify-content:space-between;align-items:center;gap:10px}
 #statsBody{overflow-y:auto;display:flex;flex-direction:column;gap:14px}
 .ssum{display:flex;gap:18px;flex-wrap:wrap}
+.sdlg .seg,.sdlg-head,.sdlg-foot{flex:none}
+.seg.sm button{padding:4px 10px;font-size:.8rem}
+.sdlg-scroll{display:flex;flex-direction:column;gap:12px;overflow:auto;min-height:0}
+.sdlg h5{margin:2px 0 -4px;font-size:.8rem;color:var(--muted);font-weight:600}
 .ssum div{display:flex;flex-direction:column}
 .ssum b{font-family:var(--mono);font-size:1.3rem}
 .ssum span{font-size:.72rem;color:var(--muted)}
@@ -477,7 +481,8 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
   <dialog class="sdlg" id="statsDlg" aria-label="个人统计">
     <div class="sdlg-head"><b>个人统计</b><button type="button" class="btn" id="statsClose">关闭</button></div>
     <div class="seg" id="statsTabs"><button type="button" data-t="single" aria-pressed="true">单个和弦</button><button type="button" data-t="prog">和弦进行</button></div>
-    <div id="statsBody"></div>
+    <div class="seg sm" id="statsDiffs"><button type="button" data-d="all" aria-pressed="true">全部</button><button type="button" data-d="easy">简单</button><button type="button" data-d="normal">普通</button><button type="button" data-d="hard">困难</button><button type="button" data-d="expert">大师</button></div>
+    <div class="sdlg-scroll" id="statsBody"></div>
     <div class="sdlg-foot"><span class="diffnote">统计只保存在这台设备的浏览器里。</span><button type="button" class="linkbtn" id="statsReset">清空统计</button></div>
   </dialog>
   <footer><span class="keys">按 <a id="helpLink">?</a> 查看快捷键指南 · </span>点已提交的行可重听<br>乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）</footer>
@@ -1506,6 +1511,10 @@ function progFinish(won){
     d.n++; if(P.solvedAt[i] != null){ d.won++; d.tries += P.solvedAt[i]; }
   });
   store.set('progStats', ps);
+  const pd = byDiff.prog[diff] || (byDiff.prog[diff] = {rn:{}});
+  bump(pd, 'game', won, P.tries.length);
+  P.seq.forEach((r, i) => bump(pd.rn, r, P.solvedAt[i] != null, P.solvedAt[i]));
+  store.set('statsByDiff', byDiff);
   const praise = ['一次就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'];
   pMsg(won ? praise[P.tries.length - 1] : '这次没猜中，答案是：');
   $('pAnsRn').textContent = P.seq.join(' – ');
@@ -1534,7 +1543,19 @@ function recordType(id, won, n){
   d.n++;
   if(won){ d.won++; d.tries += n; d.dist[n - 1]++; } else d.dist[6]++;
   store.set('typeStats', typeStats);
+  bump(byDiff.single[diff] || (byDiff.single[diff] = {}), id, won, n);
+  store.set('statsByDiff', byDiff);
 }
+// per-difficulty records (added later; older games only live in the totals above)
+const byDiff = store.get('statsByDiff', {});
+byDiff.single = byDiff.single || {}; byDiff.prog = byDiff.prog || {};
+const DIFF_ZH = {easy:'简单', normal:'普通', hard:'困难', expert:'大师'};
+function bump(map, key, won, n){
+  const d = map[key] || (map[key] = {n:0, won:0, tries:0, dist:[0,0,0,0,0,0,0]});
+  d.n++;
+  if(won){ d.won++; d.tries += n; d.dist[n - 1]++; } else d.dist[6]++;
+}
+const sumRows = rows => rows.reduce((a, r) => ({n: a.n + r.n, won: a.won + r.won, tries: a.tries + r.tries, dist: a.dist.map((v, i) => v + r.dist[i])}), {n:0, won:0, tries:0, dist:[0,0,0,0,0,0,0]});
 function renderHeaderStats(){
   const S = MODE === 'prog' ? progStats : stats;
   $('sPlayed').textContent = S.played;
@@ -1549,40 +1570,54 @@ function distHtml(dist){
   const max = Math.max(1, ...dist);
   return '<div class="dist">' + dist.map((v, i) => `<div class="r"><span>${i < 6 ? '第 ' + (i + 1) + ' 次' : '没猜中'}</span><span><span class="bar${i < 6 ? ' win' : ''}" style="display:inline-block;width:${Math.max(6, v / max * 100)}%">${v}</span></span></div>`).join('') + '</div>';
 }
-function tableHtml(rows, head){
+function tableHtml(rows, head, noWeak){
   const played = rows.filter(r => r.n >= 3);
-  const weak = played.length >= 2 ? played.reduce((a, b) => (b.won / b.n < a.won / a.n || (b.won / b.n === a.won / a.n && (b.won ? b.tries / b.won : 9) > (a.won ? a.tries / a.won : 9))) ? b : a) : null;
+  const weak = !noWeak && played.length >= 2 ? played.reduce((a, b) => (b.won / b.n < a.won / a.n || (b.won / b.n === a.won / a.n && (b.won ? b.tries / b.won : 9) > (a.won ? a.tries / a.won : 9))) ? b : a) : null;
   return `<table class="stbl"><thead><tr><th>${head}</th><th>局数</th><th>猜对率</th><th>平均几次猜对</th></tr></thead><tbody>` +
     rows.map(r => { const pct = Math.round(r.won / r.n * 100);
       return `<tr${r === weak && pct < 100 ? ' class="weak"' : ''}><td>${r.label}</td><td>${r.n}</td><td>${pct}%<span class="meter"><i style="width:${pct}%"></i></span></td><td>${r.won ? (r.tries / r.won).toFixed(1) : '–'}</td></tr>`; }).join('') +
     '</tbody></table>';
 }
+let statsDiff = 'all';
+const typeLabel = t => t.zh + (t.sym ? ' <span class="diffnote">' + (t.chip || t.sym).trim() + '</span>' : '');
+const sumHtml = (t, best) => `<div class="ssum"><div><b>${t.n}</b><span>局数</span></div><div><b>${Math.round(t.won / t.n * 100)}%</b><span>猜对率</span></div><div><b>${t.won ? (t.tries / t.won).toFixed(1) : '–'}</b><span>平均几次猜对</span></div>${best == null ? '' : `<div><b>${best}</b><span>最长连胜</span></div>`}</div>`;
+function diffTable(game, total){
+  const rows = Object.keys(DIFF_ZH).map(d => ({label: DIFF_ZH[d], ...game(d)})).filter(r => r.n);
+  const rest = total - rows.reduce((a, r) => a + r.n, 0);
+  return '<h5>各难度对比</h5>' + (rows.length ? tableHtml(rows, '难度', true) : '')
+    + (rest > 0 ? `<span class="diffnote">另有 ${rest} 局是这次更新前玩的，没记难度，只算在“全部”里。</span>` : '');
+}
 function renderStats(){
   document.querySelectorAll('#statsTabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === statsTab));
-  const body = $('statsBody');
+  document.querySelectorAll('#statsDiffs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === statsDiff));
+  const body = $('statsBody'), all = statsDiff === 'all', dz = all ? '' : DIFF_ZH[statsDiff];
   if(statsTab === 'single'){
-    const rows = TYPES.filter(t => typeStats[t.id] && typeStats[t.id].n).map(t => ({label: t.zh + (t.sym ? ' <span class="diffnote">' + (t.chip || t.sym).trim() + '</span>' : ''), ...typeStats[t.id]}))
-      .sort((a, b) => b.n - a.n);
-    if(!rows.length){ body.innerHTML = '<div class="sempty">还没有记录。玩几局单个和弦，这里会按和弦类型统计猜对率和平均用几次猜对。</div>'; return; }
-    const tot = rows.reduce((a, r) => ({n: a.n + r.n, won: a.won + r.won, tries: a.tries + r.tries}), {n:0, won:0, tries:0});
-    const dist = [0,0,0,0,0,0,0]; rows.forEach(r => r.dist.forEach((v, i) => dist[i] += v));
-    body.innerHTML = `<div class="ssum"><div><b>${tot.n}</b><span>局数</span></div><div><b>${Math.round(tot.won / tot.n * 100)}%</b><span>猜对率</span></div><div><b>${tot.won ? (tot.tries / tot.won).toFixed(1) : '–'}</b><span>平均几次猜对</span></div><div><b>${stats.best}</b><span>最长连胜</span></div></div>`
-      + distHtml(dist) + tableHtml(rows, '和弦类型');
+    const src = all ? typeStats : (byDiff.single[statsDiff] || {});
+    const rows = TYPES.filter(t => src[t.id] && src[t.id].n).map(t => ({label: typeLabel(t), ...src[t.id]})).sort((a, b) => b.n - a.n);
+    if(!rows.length){ body.innerHTML = `<div class="sempty">还没有${dz}难度的记录。玩几局单个和弦，这里会按和弦类型统计猜对率和平均用几次猜对。</div>`; return; }
+    const tot = sumRows(rows);
+    body.innerHTML = sumHtml(tot, all ? stats.best : null) + distHtml(tot.dist)
+      + (all ? diffTable(d => sumRows(Object.values(byDiff.single[d] || {})), tot.n) : '')
+      + (all ? '<h5>各和弦类型</h5>' : '') + tableHtml(rows, '和弦类型');
   } else {
-    const ps = progStats;
-    if(!ps.played){ body.innerHTML = '<div class="sempty">还没有记录。玩几局和弦进行，这里会统计每个级数和弦的猜对率和平均用几次猜对。</div>'; return; }
-    const won = ps.dist.slice(0, 6).reduce((a, v, i) => a + v * (i + 1), 0);
-    const rows = RN_ORDER.filter(r => ps.rn[r] && ps.rn[r].n).map(r => ({label: r, ...ps.rn[r]})).sort((a, b) => b.n - a.n);
-    body.innerHTML = `<div class="ssum"><div><b>${ps.played}</b><span>局数</span></div><div><b>${Math.round(ps.won / ps.played * 100)}%</b><span>猜对率</span></div><div><b>${ps.won ? (won / ps.won).toFixed(1) : '–'}</b><span>平均几次猜对</span></div><div><b>${ps.best}</b><span>最长连胜</span></div></div>`
-      + distHtml(ps.dist) + tableHtml(rows, '级数和弦');
+    const ps = progStats, pd = byDiff.prog[statsDiff];
+    const g = all ? {n: ps.played, won: ps.won, tries: ps.dist.slice(0, 6).reduce((a, v, i) => a + v * (i + 1), 0), dist: ps.dist} : (pd && pd.game) || {n:0};
+    if(!g.n){ body.innerHTML = `<div class="sempty">还没有${dz}难度的记录。玩几局和弦进行，这里会统计每个级数和弦的猜对率和平均用几次猜对。</div>`; return; }
+    const src = all ? ps.rn : pd.rn;
+    const rows = RN_ORDER.filter(r => src[r] && src[r].n).map(r => ({label: r, ...src[r]})).sort((a, b) => b.n - a.n);
+    body.innerHTML = sumHtml(g, all ? ps.best : null) + distHtml(g.dist)
+      + (all ? diffTable(d => (byDiff.prog[d] && byDiff.prog[d].game) || {n:0}, g.n) : '')
+      + (all ? '<h5>各级数和弦</h5>' : '') + tableHtml(rows, '级数和弦');
   }
 }
-$('statsBtn').onclick = () => { statsTab = MODE; renderStats(); $('statsDlg').showModal(); };
+$('statsBtn').onclick = () => { statsTab = MODE; statsDiff = 'all'; renderStats(); $('statsDlg').showModal(); };
 $('statsClose').onclick = () => $('statsDlg').close();
 $('statsDlg').addEventListener('click', e => { if(e.target === $('statsDlg')) $('statsDlg').close(); });
 document.querySelectorAll('#statsTabs button').forEach(b => b.onclick = () => { statsTab = b.dataset.t; renderStats(); });
+document.querySelectorAll('#statsDiffs button').forEach(b => b.onclick = () => { statsDiff = b.dataset.d; renderStats(); });
 $('statsReset').onclick = () => {
   if(!confirm(statsTab === 'single' ? '清空单个和弦的统计？' : '清空和弦进行的统计？')) return;
+  byDiff[statsTab] = {}; store.set('statsByDiff', byDiff);
   if(statsTab === 'single'){ Object.keys(typeStats).forEach(k => delete typeStats[k]); store.set('typeStats', typeStats); }
   else { Object.assign(progStats, {played:0, won:0, streak:0, best:0, dist:[0,0,0,0,0,0,0], rn:{}}); store.set('progStats', progStats); }
   renderStats(); renderHeaderStats();
