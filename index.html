@@ -241,6 +241,19 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:50;width:100%;height:100%}
 .kb.celebrate .k.reveal{animation:glow .5s ease-in-out 3 alternate}
 @keyframes glow{to{filter:brightness(1.25) drop-shadow(0 0 6px var(--ok))}}
+.result.t2{animation:rglow 1.2s ease-out 2}
+.result.t3{animation:rglow 0.9s ease-out 3;border-color:var(--near)}
+.result.t4{animation:rrain 2.4s linear 2;border-color:var(--near)}
+@keyframes rglow{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 70%,transparent)}100%{box-shadow:0 0 0 18px transparent}}
+@keyframes rrain{0%{box-shadow:0 0 22px hsl(0 90% 60%/.7)}25%{box-shadow:0 0 22px hsl(90 90% 55%/.7)}50%{box-shadow:0 0 22px hsl(200 90% 60%/.7)}75%{box-shadow:0 0 22px hsl(290 90% 65%/.7)}100%{box-shadow:0 0 22px hsl(360 90% 60%/.7)}}
+.wrap.shake1{animation:shake1 .35s ease-out}
+.wrap.shake2{animation:shake2 .55s ease-out}
+@keyframes shake1{20%{transform:translate(-3px,1px)}40%{transform:translate(3px,-1px)}60%{transform:translate(-2px,0)}80%{transform:translate(1px,0)}}
+@keyframes shake2{10%{transform:translate(-7px,2px) rotate(-.4deg)}25%{transform:translate(6px,-3px) rotate(.4deg)}40%{transform:translate(-5px,2px)}55%{transform:translate(4px,-1px)}70%{transform:translate(-2px,1px)}85%{transform:translate(1px,0)}}
+#fxflash{position:fixed;inset:0;pointer-events:none;z-index:49;opacity:0}
+#fxflash.on{animation:flash .7s ease-out}
+@keyframes flash{0%{opacity:.55}100%{opacity:0}}
+@media (prefers-reduced-motion: reduce){.result.t2,.result.t3,.result.t4,.wrap.shake1,.wrap.shake2,#fxflash.on{animation:none}}
 @media (prefers-reduced-motion: reduce){.stat.hot b,.reward,.kb.celebrate .k.reveal{animation:none}}
 footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;margin:0 auto;opacity:.8}
 @media (hover:none){footer .keys{display:none}}
@@ -1029,7 +1042,7 @@ function finish(won){
   setMsg(won ? praise[tries.length === maxTries() ? 5 : tries.length - 1] : (lost >= 2 ? L(`连胜 ${lost} 局到此为止，下一局重新开始！答案是：`, `Your ${lost}-game streak ends here. The answer was:`) : L('这次没猜中，答案是：', 'Not this time. The answer was:')));
   const ms = won && MODE === 'single' ? MILESTONES.find(m => m.n === ST.streak) : null;   // titles belong to single-chord mode
   const rw = $('reward'), res = $('result');
-  res.classList.toggle('win', won); res.classList.toggle('milestone', !!ms);
+  res.classList.toggle('win', won); res.classList.toggle('milestone', !!ms); res.classList.remove('t2','t3','t4');
   rw.hidden = !(won && ST.streak >= 2);
   if(!rw.hidden){
     rw.style.animation = 'none'; void rw.offsetWidth; rw.style.animation = '';
@@ -1040,8 +1053,9 @@ function finish(won){
     })();
   }
   if(won){
-    celebrate(ms ? 3 : ST.streak >= 2 ? 1.6 : 1);
-    fanfare(!!ms);
+    const tier = streakTier(ST.streak, ms);
+    celebrate(tier, res);
+    fanfare(tier);
     const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate');
   }
   $('rName').textContent = chordTitle(chord);
@@ -1051,30 +1065,69 @@ function finish(won){
 }
 
 // ---------- celebration ----------
-function fanfare(big){
+// streak tier: 0 = first win, 1 = 2–4, 2 = 5–9, 3 = 10–19, 4 = 20+ (a title unlock bumps one tier)
+function streakTier(n, ms){
+  const t = n >= 20 ? 4 : n >= 10 ? 3 : n >= 5 ? 2 : n >= 2 ? 1 : 0;
+  return Math.min(4, t + (ms ? 1 : 0));
+}
+function fanfare(tier, rootPc){
   const a = audio(), t = a.currentTime + 0.35;
-  const root = 60 + chord.rootPc, seq = big ? [0,4,7,12,16,19,24] : [0,4,7,12];
-  seq.forEach((iv,i) => pianoNote(root + iv, t + i*0.07, 0.45, 1.4));
-  if(big) [0,4,7,12,24].forEach(iv => pianoNote(root + iv, t + seq.length*0.07 + 0.05, 0.5, 2.5));
+  const root = 60 + (rootPc ?? chord.rootPc), step = tier >= 3 ? 0.055 : 0.07;
+  const seq = [[0,4,7,12],[0,4,7,12,16],[0,4,7,12,16,19,24],[0,4,7,12,16,19,24,28,31],[-12,0,4,7,12,16,19,24,28,31,36]][tier];
+  seq.forEach((iv,i) => pianoNote(root + iv, t + i*step, 0.45, 1.4));
+  const end = t + seq.length*step + 0.05;
+  if(tier >= 2) [0,4,7,12,24].forEach(iv => pianoNote(root + iv, end, 0.5, 2.5));
+  if(tier >= 3) [-12,-24].forEach(iv => pianoNote(root + iv, end, 0.55, 2.8));
+  if(tier >= 4) [7,12,16,19,24].forEach((iv,i) => pianoNote(root + 24 + iv, end + 0.25 + i*0.04, 0.3, 2));
 }
 const fx = document.createElement('canvas'); fx.id = 'fx'; document.body.appendChild(fx);
+const fxFlash = document.createElement('div'); fxFlash.id = 'fxflash'; document.body.appendChild(fxFlash);
 let parts = [], fxRun = false;
-function celebrate(power){
+const TIERS = [
+  {n:50,  sp:1,   burst:0, rain:false},
+  {n:90,  sp:1.2, burst:0, rain:false},
+  {n:130, sp:1.35,burst:1, rain:false},
+  {n:180, sp:1.45,burst:3, rain:false},
+  {n:240, sp:1.55,burst:5, rain:true},
+];
+function celebrate(tier, resEl){
+  tier = Math.max(0, Math.min(4, tier|0));
+  if(resEl){ resEl.classList.remove('t2','t3','t4'); if(tier >= 2){ void resEl.offsetWidth; resEl.classList.add('t' + tier); } }
   if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const dpr = window.devicePixelRatio || 1;
+  const T = TIERS[tier], dpr = window.devicePixelRatio || 1;
   fx.width = innerWidth*dpr; fx.height = innerHeight*dpr;
   const cs = getComputedStyle(document.documentElement);
-  const cols = ['--ok','--near','--accent','--fg'].map(v => cs.getPropertyValue(v).trim());
-  const glyphs = ['♪','♫','♩','♬','●','■'];
-  const n = Math.round(70*power);
-  for(let i=0;i<n;i++){
+  const base = ['--ok','--near','--accent','--fg'].map(v => cs.getPropertyValue(v).trim());
+  const col = () => T.rain ? `hsl(${Math.floor(Math.random()*360)} 90% 60%)` : base[Math.floor(Math.random()*base.length)];
+  const glyphs = tier >= 1 ? ['♪','♫','♩','♬','●','■','★'] : ['♪','♫','♩','♬','●','■'];
+  const pick = () => glyphs[Math.floor(Math.random()*glyphs.length)];
+  for(let i=0;i<T.n;i++){
     const fromLeft = i % 2 === 0;
     parts.push({
       x: (fromLeft ? 0.1 : 0.9)*innerWidth, y: innerHeight*0.75,
-      vx: (fromLeft ? 1 : -1)*(2 + Math.random()*6)*Math.sqrt(power), vy: -(8 + Math.random()*9)*Math.min(1.4, Math.sqrt(power)),
-      r: Math.random()*6.28, vr: (Math.random()-.5)*0.3, size: 14 + Math.random()*14,
-      g: glyphs[Math.floor(Math.random()*glyphs.length)], c: cols[Math.floor(Math.random()*cols.length)], life: 0
+      vx: (fromLeft ? 1 : -1)*(2 + Math.random()*6)*T.sp, vy: -(8 + Math.random()*9)*Math.min(1.4, T.sp),
+      r: Math.random()*6.28, vr: (Math.random()-.5)*0.3, size: 14 + Math.random()*(tier >= 3 ? 20 : 14),
+      g: pick(), c: col(), life: 0, d: 0
     });
+  }
+  // firework bursts: radial explosions spread across the upper half, staggered in time
+  for(let b=0;b<T.burst;b++){
+    const cx = b === 0 ? innerWidth/2 : innerWidth*(0.15 + Math.random()*0.7);
+    const cy = b === 0 ? innerHeight*0.35 : innerHeight*(0.15 + Math.random()*0.3);
+    const m = 36 + tier*6, c0 = col();
+    for(let i=0;i<m;i++){
+      const ang = i/m*6.283 + Math.random()*0.1, v = 4 + Math.random()*4 + tier;
+      parts.push({x:cx, y:cy, vx:Math.cos(ang)*v, vy:Math.sin(ang)*v, r:0, vr:(Math.random()-.5)*0.2,
+        size: 10 + Math.random()*10, g: Math.random() < 0.5 ? '●' : pick(), c: T.rain ? col() : c0, life: 0, d: b*14, drag: 0.94});
+    }
+  }
+  if(tier >= 3){
+    const w = document.querySelector('.wrap'), k = tier >= 4 ? 'shake2' : 'shake1';
+    w.classList.remove('shake1','shake2'); void w.offsetWidth; w.classList.add(k);
+    fxFlash.style.background = T.rain
+      ? 'radial-gradient(circle at 50% 40%, hsl(50 100% 70%/.5), hsl(300 90% 60%/.25) 45%, transparent 75%)'
+      : `radial-gradient(circle at 50% 40%, color-mix(in srgb, ${base[1]} 45%, transparent), transparent 70%)`;
+    fxFlash.classList.remove('on'); void fxFlash.offsetWidth; fxFlash.classList.add('on');
   }
   if(!fxRun){ fxRun = true; requestAnimationFrame(tick); }
 }
@@ -1083,7 +1136,9 @@ function tick(){
   c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,innerWidth,innerHeight);
   parts = parts.filter(p => p.y < innerHeight + 40 && p.life < 260);
   parts.forEach(p => {
-    p.life++; p.vy += 0.28; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+    if(p.d > 0){ p.d--; return; }
+    const dr = p.drag || 0.99;
+    p.life++; p.vy = p.vy*(p.drag ? dr : 1) + (p.drag ? 0.12 : 0.28); p.vx *= dr; p.x += p.vx; p.y += p.vy; p.r += p.vr;
     c.save(); c.translate(p.x,p.y); c.rotate(p.r); c.globalAlpha = Math.max(0, 1 - p.life/260);
     c.fillStyle = p.c; c.font = `${p.size}px ${getComputedStyle(document.body).fontFamily}`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -1642,19 +1697,19 @@ function progFinish(won){
   if(VS.room){
     $('pAnsRn').textContent = P.seq.join(' – ');
     $('pAnsNames').textContent = L(`${KEYN[P.key]} 大调 · `, `${KEYN[P.key]} major · `) + P.seq.map(r => rnName(P.key, r)).join(' – ');
-    $('pResult').hidden = false; $('pResult').classList.toggle('win', won); $('pAct').hidden = true;
-    if(won) celebrate(1);
+    $('pResult').hidden = false; $('pResult').classList.toggle('win', won); $('pResult').classList.remove('t2','t3','t4'); $('pAct').hidden = true;
+    if(won) celebrate(0);
     progRender(); vsProgFinish(won); return;
   }
   const praise = L(['一次就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'], ['Got it in one!','Beautiful!','Very good!','Nice!','Phew, close one.','Last try, nailed it!']);
   pMsg(won ? praise[P.tries.length - 1] : L('这次没猜中，答案是：', 'Not this time. The answer was:'));
   $('pAnsRn').textContent = P.seq.join(' – ');
   $('pAnsNames').textContent = L(`${KEYN[P.key]} 大调 · `, `${KEYN[P.key]} major · `) + P.seq.map(r => rnName(P.key, r)).join(' – ');
-  $('pResult').hidden = false; $('pResult').classList.toggle('win', won); $('pAct').hidden = true;
+  $('pResult').hidden = false; $('pResult').classList.toggle('win', won); $('pResult').classList.remove('t2','t3','t4'); $('pAct').hidden = true;
   if(won){
-    celebrate(ps.streak >= 3 ? 1.6 : 1);
-    const a = audio(), t = a.currentTime + 0.3, root = 60 + P.key;
-    [0,4,7,12].forEach((iv, i) => pianoNote(root + iv, t + i * 0.07, 0.45, 1.4));
+    const tier = streakTier(ps.streak);
+    celebrate(tier, $('pResult'));
+    fanfare(tier, P.key);
   }
   progRender();
 }
@@ -1849,7 +1904,7 @@ function vsProgFinish(won){
 function vsFinish(won){
   VS.ms = performance.now() - VS.startMs;
   setMsg(won ? L(`猜对了！用了 ${tries.length} 次，${(VS.ms/1000).toFixed(1)} 秒。等对手结束…`, `Solved in ${tries.length} ${tries.length > 1 ? 'tries' : 'try'}, ${(VS.ms/1000).toFixed(1)}s. Waiting for the others…`) : L('这局没猜中，等对手结束…', 'Missed this one. Waiting for the others…'));
-  if(won){ celebrate(1); fanfare(false); const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate'); }
+  if(won){ celebrate(0); fanfare(0); const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate'); }
   $('reward').hidden = true; $('result').classList.toggle('win', won); $('result').classList.remove('milestone');
   $('rName').textContent = chordTitle(chord);
   $('rNotes').textContent = chordDesc(chord) + ' · ' + noteList(chord);
