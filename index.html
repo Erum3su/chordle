@@ -52,10 +52,12 @@ button.inst::after{display:none}
 /* chord progression mode */
 .pkey{font-size:.9rem;color:var(--muted)}
 .pkey b{color:var(--fg);font-family:var(--mono)}
-.pgrid{display:flex;flex-direction:column;gap:5px;width:100%;max-width:520px}
+.pgrid{display:flex;flex-direction:column;gap:5px;width:100%;max-width:600px}
 .prow{display:grid;gap:5px;grid-template-columns:repeat(var(--n),1fr)}
 .pcell{height:44px;border:2px solid var(--line);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;line-height:1.1}
 .pcell small{font-size:.68rem;font-weight:500;opacity:.8}
+.pcell{min-width:0;overflow:hidden;white-space:nowrap}
+@media (max-width:420px){.pcell{font-size:.85rem;letter-spacing:-.02em}.pcell small{font-size:.6rem}}
 .pcell.filled{border-color:var(--muted);cursor:pointer}
 .pcell.ok,.pcell.near,.pcell.miss{border-color:transparent;color:#fff}
 .pcell.ok{background:var(--ok)} .pcell.near{background:var(--near);color:#2a1f00} .pcell.miss{background:var(--miss)}
@@ -1370,13 +1372,17 @@ const PROGS = {
            ['vi7','ii7','V7','Imaj7'],['IVmaj7','V7','iii7','vi7'],['Imaj7','iii7','IVmaj7','V7'],['IVmaj7','iii7','ii7','Imaj7'],['ii7','V7','iii7','vi7'],
            // triads mixed in, plus secondary dominants (II7 = V7/V, III7 = V7/vi, VI7 = V7/ii, I7 = V7/IV)
            ['ii','V7','I','vi'],['I','iii','IV','V7'],['Imaj7','vi','ii7','V7'],['I','II7','V7','I'],['I','VI7','ii','V7'],['I','III7','vi','IV'],
-           ['IVmaj7','V7','III7','vi'],['I','I7','IV','V7'],['I','vi','II7','V7'],['vi','II7','V','I']],
-  expert: [['I','♭VII','IV','I'],['I','iv','I'],['IV','iv','I'],['I','II7','IV','I'],['Imaj7','VI7','ii7','V7'],['I','♭VI','♭VII','I'],
-           ['vi7','II7','ii7','V7'],['Imaj7','I7','IVmaj7','iv'],['viiø7','III7','vi7'],['I','III7','vi','IV'],['ii7','V7','iii7','VI7'],['I','♭III','IV','I']],
+           ['IVmaj7','V7','III7','vi'],['I','I7','IV','V7'],['I','vi','II7','V7'],['vi','II7','V','I'],
+           ['ii7','V7','I'],['II7','V7','I'],['vi','II7','V7'],['I','VI7','ii7'],['IVmaj7','V7','vi'],
+           ['Imaj7','vi7','ii7','V7','Imaj7'],['I','VI7','ii7','V7','I'],['iii7','VI7','ii7','V7','Imaj7'],['I','III7','vi','II7','V7'],['IVmaj7','iii7','vi7','ii7','V7'],['I','I7','IV','V7','I']],
+  expert: [['I','♭VII','IV','I'],['I','vi','iv','I'],['I','IV','iv','I'],['I','II7','IV','I'],['Imaj7','VI7','ii7','V7'],['I','♭VI','♭VII','I'],
+           ['vi7','II7','ii7','V7'],['Imaj7','I7','IVmaj7','iv'],['Imaj7','viiø7','III7','vi7'],['I','III7','vi','IV'],['ii7','V7','iii7','VI7'],['I','♭III','IV','I'],
+           ['I','♭VII','IV','iv','I'],['vi7','II7','ii7','V7','Imaj7'],['I','♭III','IV','iv','I'],['iii7','VI7','ii7','V7','I'],
+           ['Imaj7','VI7','ii7','V7','iii7','VI7'],['IVmaj7','iv','iii7','VI7','ii7','V7'],['Imaj7','I7','IVmaj7','iv','iii7','VI7'],['I','III7','vi','♭VII','IV','I']],
 };
 const PROG_NOTE = {
   easy:'2–3 个三和弦 · 最常见的功能进行', normal:'3–4 个和弦 · 流行歌常用进行，加入属七 V7',
-  hard:'七和弦与三和弦混合 · ii–V–I 等爵士进行，加入副属和弦 II7、III7、VI7 等', expert:'借用和弦与副属和弦 · ♭VII、iv、II7 等',
+  hard:'3–5 个和弦 · 七和弦与三和弦混合 · ii–V–I 等爵士进行，加入副属和弦 II7、III7、VI7 等', expert:'4–6 个和弦 · 借用和弦与副属和弦 · ♭VII、iv、II7 等',
 };
 const KEYN = ['C','D♭','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
 const RN_ORDER = Object.keys(RN);
@@ -1391,7 +1397,9 @@ const noteIn = (key, pc) => (SHARP_KEYS.has(key) ? KEYS_SHARP : KEYS_FLAT)[pc % 
 const rnName = (key, r) => { const [d, id] = RN[r]; return noteIn(key, key + d) + TYPES.find(t => t.id === id).sym; };
 const P = {key:0, seq:null, voices:[], tries:[], cur:[], over:false, solvedAt:[]};
 function progNew(){
-  const list = PROGS[diff];
+  // hard/expert: pick the length first so long progressions come up as often as short ones
+  const all = PROGS[diff], lens = [...new Set(all.map(x => x.length))], len = lens[rand(lens.length)];
+  const list = (diff === 'hard' || diff === 'expert') ? all.filter(x => x.length === len) : all;
   P.seq = list[rand(list.length)].slice();
   P.key = rand(12); P.tries = []; P.cur = []; P.over = false; P.solvedAt = P.seq.map(() => null);
   P.voices = voiceProg(P.key, P.seq);
