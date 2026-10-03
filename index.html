@@ -458,12 +458,11 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <div class="hrow"><span><kbd>A</kbd>…<kbd>'</kbd> <kbd>Q</kbd>…<kbd>]</kbd></span><span>选级数和弦，每个按钮右上角标着对应的键</span></div>
       <h4>两种模式通用</h4>
       <div class="hrow"><span><kbd>空格</kbd></span><span>播放题目</span></div>
-      <div class="hrow"><span><kbd>⇧</kbd><kbd>空格</kbd></span><span>单个和弦：播放我选的音；和弦进行：听主和弦</span></div>
+      <div class="hrow"><span><kbd>V</kbd></span><span>单个和弦：播放我选的音；和弦进行：听主和弦</span></div>
       <div class="hrow"><span><kbd>↩</kbd></span><span>提交；结束后进入下一题</span></div>
       <div class="hrow"><span><kbd>⌫</kbd></span><span>删掉最后一个</span></div>
       <div class="hrow"><span><kbd>⇧</kbd><kbd>⌫</kbd></span><span>全部清除</span></div>
       <div class="hrow"><span><kbd>1</kbd>…<kbd>6</kbd></span><span>重听第几次的猜测</span></div>
-      <div class="hrow"><span><kbd>esc</kbd><kbd>esc</kbd></span><span>连按两次放弃这一题</span></div>
       <h4>设置</h4>
       <div class="hrow"><span><kbd>⇧</kbd><kbd>1</kbd>…<kbd>4</kbd></span><span>难度：简单 / 普通 / 困难 / 大师</span></div>
       <div class="hrow"><span><kbd>⇧</kbd><kbd>M</kbd></span><span>切换单个和弦 / 和弦进行</span></div>
@@ -1264,7 +1263,7 @@ const PIANO_CODES = ['KeyA','KeyW','KeyS','KeyE','KeyD','KeyF','KeyT','KeyG','Ke
 const PIANO_CHARS = ['A','W','S','E','D','F','T','G','Y','H','U','J','K','O','L','P',';',"'"];
 const PAL_CODES = ['KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','Quote','KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','BracketLeft','BracketRight'];
 const PAL_CHARS = ['A','S','D','F','G','H','J','K','L',';',"'",'Q','W','E','R','T','Y','U','I','O','P','[',']'];
-let kbBase = 60, escAt = 0;
+let kbBase = 60;
 function kbClamp(){
   const D = DIFF[diff], lo = Math.ceil(D.lo / 12) * 12, hi = Math.max(lo, Math.floor((D.hi - 11) / 12) * 12);
   kbBase = Math.min(hi, Math.max(lo, kbBase));
@@ -1295,15 +1294,7 @@ document.addEventListener('keydown', e => {
       (prog ? pMsg : setMsg)('音色：' + inst.name); return;
     }
     if(code === 'KeyS'){ e.preventDefault(); $('statsBtn').click(); return; }
-    if(code === 'Space'){ e.preventDefault(); if(prog) $('pTonic').click(); else if(sel.length) playChord(sel); return; }
     if(code === 'Backspace'){ e.preventDefault(); if(prog){ if(!P.over){ P.cur = []; progRender(); } } else if(sel.length && !over){ $('clearBtn').click(); } return; }
-    return;
-  }
-  if(code === 'Escape'){
-    const done = prog ? (!P.seq || P.over) : (!chord || over);
-    if(done) return;
-    if(Date.now() - escAt < 1500){ escAt = 0; $(prog ? 'pGive' : 'giveUp').click(); }
-    else { escAt = Date.now(); (prog ? pMsg : setMsg)('再按一次 esc 放弃这一题。', true); }
     return;
   }
   const row = /^Digit([1-6])$/.exec(code);
@@ -1314,6 +1305,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if(code === 'Space'){ e.preventDefault(); prog ? $('pPlay').click() : doPlay(); return; }
+  if(code === 'KeyV'){ e.preventDefault(); if(prog) $('pTonic').click(); else if(sel.length) playChord(sel); return; }
   if(code === 'Enter'){
     if(e.target.closest && e.target.closest('button,[role=button]')) return;
     e.preventDefault();
