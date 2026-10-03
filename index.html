@@ -68,6 +68,11 @@ h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;c
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:3px 11px;font:inherit;font-size:.85rem;cursor:pointer}
 .chip[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);font-weight:500}
+.tip{position:absolute;z-index:40;max-width:240px;background:var(--fg);color:var(--bg);border-radius:8px;padding:8px 11px;font-size:.8rem;line-height:1.45;
+  display:flex;flex-direction:column;gap:2px;box-shadow:0 6px 20px -6px rgba(0,0,0,.35);pointer-events:none;animation:tipin .12s ease-out}
+.tip b{font-size:.82rem}
+@keyframes tipin{from{opacity:0;transform:translateY(3px)}}
+.chip{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .chip .sym{font-family:var(--mono);font-size:.78rem;opacity:.75;margin-left:4px}
 .typebox summary{display:flex;align-items:center;gap:10px 14px;cursor:pointer;list-style:none;flex-wrap:wrap}
 .typebox summary::-webkit-details-marker{display:none}
@@ -268,6 +273,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <summary><span class="label">和弦类型</span><span class="tsum" id="typeSum"></span><span class="chev" aria-hidden="true"></span></summary>
       <div class="typebody">
         <div class="chips" id="typeChips"></div>
+        <div class="diffnote">鼠标悬停（手机上长按）可以看每种和弦的色彩听感。</div>
         <div class="row">
           <button type="button" class="linkbtn" id="allTriads">全部三和弦</button>
           <button type="button" class="linkbtn" id="allSevenths">全部七和弦</button>
@@ -994,12 +1000,50 @@ function renderAll(){
   renderKeys();
 }
 
+// ---------- chord colour: what each type sounds like ----------
+const FEEL = {
+  maj:'明亮、稳定、开朗，最“正”的声音', min:'柔和、忧郁、内敛', dim:'紧张、不安，急着往前走', aug:'悬浮、梦幻、略带诡异，没有落脚点',
+  sus2:'开阔、通透、清新，不明也不暗', sus4:'悬而未决，像在等它回到大三', dom7:'有推动力，带点布鲁斯味，想解决到主和弦',
+  maj7:'温暖、慵懒、都市感，爵士和 City Pop 的常客', min7:'放松、柔和、淡淡感伤，R&B 常用', m7b5:'暗淡、迷离、悬念感，常引向小调的属和弦',
+  dim7:'戏剧化、紧张到极点，老电影里“危机来了”', dom9:'圆润的属七，放克和灵魂乐的味道', maj9:'比大七更柔更亮，梦幻、浪漫',
+  min9:'深沉、丝滑、略带惆怅，Neo-Soul 的标志', min11:'空灵、开阔，现代爵士感', dom13:'饱满华丽的属和弦，大乐队爵士味',
+  sus7:'悬浮又有推动力，福音和现代爵士常用', mmaj7:'神秘、阴暗，电影悬疑感（007 的结尾和弦）', six9:'明亮、开放、圆满，爵士常用的结尾',
+  ust2:'利底亚色彩，明亮、漂浮、很现代', ust6:'紧张里带着甜，张力很强', ustb6:'黑暗、强烈的 alt 张力，急着要解决',
+};
+const tip = document.createElement('div'); tip.className = 'tip'; tip.setAttribute('role', 'tooltip'); tip.hidden = true;
+document.body.appendChild(tip);
+function showTip(el, t){
+  tip.innerHTML = '';
+  const h = document.createElement('b'); h.textContent = t.zh + (t.sym ? ' ' + t.sym : ''); tip.appendChild(h);
+  const p = document.createElement('span'); p.textContent = FEEL[t.id] || ''; tip.appendChild(p);
+  tip.hidden = false;
+  const r = el.getBoundingClientRect(), w = tip.offsetWidth, h2 = tip.offsetHeight;
+  const x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+  const above = r.top - h2 - 8 > 0;
+  tip.style.left = x + scrollX + 'px';
+  tip.style.top = (above ? r.top - h2 - 8 : r.bottom + 8) + scrollY + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+addEventListener('scroll', hideTip, {passive:true});
+document.addEventListener('pointerdown', e => { if(!e.target.closest || !e.target.closest('.chip')) hideTip(); });
+
 // ---------- events ----------
 TYPES.forEach(t => {
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'chip'; b.dataset.t = t.id; b.id = 'type-'+t.id;
   b.innerHTML = t.zh + (t.sym ? `<span class="sym">${t.sym}</span>` : '');
+  b.setAttribute('aria-description', FEEL[t.id] || '');
+  // mouse: hover shows the feel; touch: long-press shows it without toggling the chip
+  b.addEventListener('pointerenter', e => { if(e.pointerType === 'mouse') showTip(b, t); });
+  b.addEventListener('pointerleave', e => { if(e.pointerType === 'mouse') hideTip(); });
+  b.addEventListener('focus', () => { if(b.matches(':focus-visible')) showTip(b, t); });
+  b.addEventListener('blur', hideTip);
+  let lp = 0;
+  b.addEventListener('pointerdown', e => { if(e.pointerType !== 'mouse'){ b._long = false; lp = setTimeout(() => { b._long = true; showTip(b, t); }, 450); } });
+  ['pointerup','pointercancel','pointermove'].forEach(ev => b.addEventListener(ev, e => { if(ev !== 'pointermove' || Math.abs(e.movementY) > 4) clearTimeout(lp); }));
+  b.addEventListener('contextmenu', e => { if(b._long) e.preventDefault(); });
   b.onclick = () => {
+    if(b._long){ b._long = false; return; }
     if(types.includes(t.id)) types = types.filter(x => x !== t.id); else types.push(t.id);
     store.set('types', types); settingsChanged();
   };
