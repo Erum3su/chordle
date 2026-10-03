@@ -907,14 +907,14 @@ const IV_ZH = ['纯一度','小二度','大二度','小三度','大三度','纯�
 const IV_EN = ['unison','minor 2nd','major 2nd','minor 3rd','major 3rd','perfect 4th','tritone','perfect 5th','minor 6th','major 6th','minor 7th','major 7th','octave','minor 9th','major 9th','minor 10th','major 10th','perfect 11th','augmented 11th','perfect 12th','minor 13th','major 13th','minor 14th','major 14th','double octave'];
 const ivName = n => L(IV_ZH, IV_EN)[n] || n;
 const INTERVALS = Array.from({length:24}, (_, i) => ({id:'iv' + (i + 1), n:i + 1}));
-// easy: ascending within an octave; normal adds descending; hard adds both notes at once; master goes up to two octaves
-const IV_DIFF = {easy:{max:12, dirs:['up']}, normal:{max:12, dirs:['up','down']}, hard:{max:12, dirs:['up','down','harm']}, expert:{max:24, dirs:['up','down','harm']}};
-const IV_NOTE = {easy:['上行旋律音程 · 八度以内', 'Ascending, one note after the other · within an octave'], normal:['上行和下行 · 八度以内', 'Ascending and descending · within an octave'],
+// easy: ascending, common intervals only; normal adds descending; hard adds both notes at once; master goes up to two octaves
+const IV_DIFF = {easy:{max:12, only:[2, 3, 4, 5, 7, 9, 12], dirs:['up']}, normal:{max:12, dirs:['up','down']}, hard:{max:12, dirs:['up','down','harm']}, expert:{max:24, dirs:['up','down','harm']}};
+const IV_NOTE = {easy:['上行 · 常见音程：大二度、三度、纯四五度、大六度、八度', 'Ascending · common intervals: major 2nd, 3rds, 4th, 5th, major 6th, octave'], normal:['上行和下行 · 八度以内', 'Ascending and descending · within an octave'],
   hard:['上行、下行和同时发声 · 八度以内', 'Up, down, and both notes at once · within an octave'], expert:['上行、下行和同时发声 · 最大两个八度', 'Up, down, and both notes at once · up to two octaves']};
 const IV_DIR = {up:['上行', 'ascending'], down:['下行', 'descending'], harm:['同时发声', 'both at once']};
 function makeInterval(){
   const D = DIFF[diff], V = IV_DIFF[diff];
-  const n = 1 + rand(V.max), dir = V.dirs[rand(V.dirs.length)];
+  const n = V.only ? V.only[rand(V.only.length)] : 1 + rand(V.max), dir = V.dirs[rand(V.dirs.length)];
   const lo = D.lo + rand(Math.max(1, D.hi - D.lo - n + 1));
   return {type:{id:'iv' + n, iv:[0, n], sym:'', zh:IV_ZH[n], g:0, interval:true}, rootPc: lo % 12, inv:0, open:false, alt:null, notes:[lo, lo + n], ivDir:dir};
 }
