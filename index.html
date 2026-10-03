@@ -191,7 +191,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .kb .k .kc{font-size:calc(var(--kw) * .22);font-weight:600;opacity:.55;pointer-events:none;line-height:1;margin-bottom:6px;min-height:1em}
 .kb .w .kc{color:#5d5a52} .kb .b .kc{color:#e6e8ec}
 .kb .w.inwin{box-shadow:inset 0 4px 0 color-mix(in srgb,var(--sel) 45%,transparent)}
-.pbtn{position:relative} .pbtn .kc{position:absolute;top:2px;right:4px;font-family:var(--mono);font-size:.6rem;font-style:normal;color:var(--muted);opacity:.8}
+.pbtn{position:relative}
+@media (hover:hover) and (pointer:fine){.pbtn{padding-right:15px;padding-left:12px}} .pbtn .kc{position:absolute;top:2px;right:4px;font-family:var(--mono);font-size:.6rem;font-style:normal;color:var(--muted);opacity:.8}
 .pbtn.ok .kc{color:#e8f5ec}
 @media (hover:none),(pointer:coarse){.kb .k .kc,.pbtn .kc{display:none}.kb .w.inwin{box-shadow:none}}
 .helpdlg kbd{display:inline-block;min-width:1.6em;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--bg);font-family:var(--mono);font-size:.8rem;text-align:center;line-height:1.4}
@@ -1366,13 +1367,16 @@ const PROGS = {
   normal: [['I','V','vi','IV'],['I','vi','IV','V'],['vi','IV','I','V'],['I','IV','V','I'],['ii','V7','I'],['I','vi','ii','V7'],['IV','I','V','vi'],
            ['I','iii','IV','V'],['I','IV','vi','V'],['vi','ii','V','I'],['IV','V','iii','vi'],['I','V','IV','V7']],
   hard:   [['ii7','V7','Imaj7'],['Imaj7','vi7','ii7','V7'],['iii7','vi7','ii7','V7'],['Imaj7','IVmaj7','iii7','vi7'],['ii7','V7','Imaj7','vi7'],
-           ['vi7','ii7','V7','Imaj7'],['IVmaj7','V7','iii7','vi7'],['Imaj7','iii7','IVmaj7','V7'],['IVmaj7','iii7','ii7','Imaj7'],['ii7','V7','iii7','vi7']],
+           ['vi7','ii7','V7','Imaj7'],['IVmaj7','V7','iii7','vi7'],['Imaj7','iii7','IVmaj7','V7'],['IVmaj7','iii7','ii7','Imaj7'],['ii7','V7','iii7','vi7'],
+           // triads mixed in, plus secondary dominants (II7 = V7/V, III7 = V7/vi, VI7 = V7/ii, I7 = V7/IV)
+           ['ii','V7','I','vi'],['I','iii','IV','V7'],['Imaj7','vi','ii7','V7'],['I','II7','V7','I'],['I','VI7','ii','V7'],['I','III7','vi','IV'],
+           ['IVmaj7','V7','III7','vi'],['I','I7','IV','V7'],['I','vi','II7','V7'],['vi','II7','V','I']],
   expert: [['I','♭VII','IV','I'],['I','iv','I'],['IV','iv','I'],['I','II7','IV','I'],['Imaj7','VI7','ii7','V7'],['I','♭VI','♭VII','I'],
            ['vi7','II7','ii7','V7'],['Imaj7','I7','IVmaj7','iv'],['viiø7','III7','vi7'],['I','III7','vi','IV'],['ii7','V7','iii7','VI7'],['I','♭III','IV','I']],
 };
 const PROG_NOTE = {
   easy:'2–3 个三和弦 · 最常见的功能进行', normal:'3–4 个和弦 · 流行歌常用进行，加入属七 V7',
-  hard:'七和弦 · ii–V–I 等爵士进行', expert:'借用和弦与副属和弦 · ♭VII、iv、II7 等',
+  hard:'七和弦与三和弦混合 · ii–V–I 等爵士进行，加入副属和弦 II7、III7、VI7 等', expert:'借用和弦与副属和弦 · ♭VII、iv、II7 等',
 };
 const KEYN = ['C','D♭','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
 const RN_ORDER = Object.keys(RN);
