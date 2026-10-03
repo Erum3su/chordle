@@ -1055,7 +1055,7 @@ function finish(won){
   if(won){
     const tier = streakTier(ST.streak, ms);
     celebrate(tier, res);
-    fanfare(tier);
+    fanfare(!!ms);
     const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate');
   }
   $('rName').textContent = chordTitle(chord);
@@ -1070,15 +1070,11 @@ function streakTier(n, ms){
   const t = n >= 20 ? 4 : n >= 10 ? 3 : n >= 5 ? 2 : n >= 2 ? 1 : 0;
   return Math.min(4, t + (ms ? 1 : 0));
 }
-function fanfare(tier, rootPc){
+function fanfare(big){
   const a = audio(), t = a.currentTime + 0.35;
-  const root = 60 + (rootPc ?? chord.rootPc), step = tier >= 3 ? 0.055 : 0.07;
-  const seq = [[0,4,7,12],[0,4,7,12,16],[0,4,7,12,16,19,24],[0,4,7,12,16,19,24,28,31],[-12,0,4,7,12,16,19,24,28,31,36]][tier];
-  seq.forEach((iv,i) => pianoNote(root + iv, t + i*step, 0.45, 1.4));
-  const end = t + seq.length*step + 0.05;
-  if(tier >= 2) [0,4,7,12,24].forEach(iv => pianoNote(root + iv, end, 0.5, 2.5));
-  if(tier >= 3) [-12,-24].forEach(iv => pianoNote(root + iv, end, 0.55, 2.8));
-  if(tier >= 4) [7,12,16,19,24].forEach((iv,i) => pianoNote(root + 24 + iv, end + 0.25 + i*0.04, 0.3, 2));
+  const root = 60 + chord.rootPc, seq = big ? [0,4,7,12,16,19,24] : [0,4,7,12];
+  seq.forEach((iv,i) => pianoNote(root + iv, t + i*0.07, 0.45, 1.4));
+  if(big) [0,4,7,12,24].forEach(iv => pianoNote(root + iv, t + seq.length*0.07 + 0.05, 0.5, 2.5));
 }
 const fx = document.createElement('canvas'); fx.id = 'fx'; document.body.appendChild(fx);
 const fxFlash = document.createElement('div'); fxFlash.id = 'fxflash'; document.body.appendChild(fxFlash);
@@ -1709,7 +1705,8 @@ function progFinish(won){
   if(won){
     const tier = streakTier(ps.streak);
     celebrate(tier, $('pResult'));
-    fanfare(tier, P.key);
+    const a = audio(), t = a.currentTime + 0.3, root = 60 + P.key;
+    [0,4,7,12].forEach((iv, i) => pianoNote(root + iv, t + i * 0.07, 0.45, 1.4));
   }
   progRender();
 }
@@ -1904,7 +1901,7 @@ function vsProgFinish(won){
 function vsFinish(won){
   VS.ms = performance.now() - VS.startMs;
   setMsg(won ? L(`猜对了！用了 ${tries.length} 次，${(VS.ms/1000).toFixed(1)} 秒。等对手结束…`, `Solved in ${tries.length} ${tries.length > 1 ? 'tries' : 'try'}, ${(VS.ms/1000).toFixed(1)}s. Waiting for the others…`) : L('这局没猜中，等对手结束…', 'Missed this one. Waiting for the others…'));
-  if(won){ celebrate(0); fanfare(0); const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate'); }
+  if(won){ celebrate(0); fanfare(false); const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate'); }
   $('reward').hidden = true; $('result').classList.toggle('win', won); $('result').classList.remove('milestone');
   $('rName').textContent = chordTitle(chord);
   $('rNotes').textContent = chordDesc(chord) + ' · ' + noteList(chord);
