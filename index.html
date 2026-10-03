@@ -509,10 +509,12 @@ function epianoNote(m, t, vel=0.6, dur=2.6){
   ag.gain.setValueAtTime(0, t); ag.gain.linearRampToValueAtTime(0.3 * vel, t + 0.005);
   ag.gain.setTargetAtTime(0.0001, t + 0.01, decay / 2.5);
   ag.gain.setTargetAtTime(0.0001, t + dur, 0.12);
-  car.connect(ag); ag.connect(out);
-  // gentle tremolo
-  const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = 4.5; lg.gain.value = 0.06 * vel;
-  lfo.connect(lg); lg.connect(ag.gain);
+  // gentle tremolo as a ±3% swing of the whole note, so it stays subtle as the note fades
+  // (it used to be added to the decaying envelope, which made the tail wobble harder and harder)
+  const trem = a.createGain(); trem.gain.value = 1;
+  const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = 4.5; lg.gain.value = 0.03;
+  lfo.connect(lg); lg.connect(trem.gain);
+  car.connect(ag); ag.connect(trem); trem.connect(out);
   [car, mod, tine, lfo].forEach(o => { o.start(t); o.stop(t + dur + 0.8); });
 }
 // warm analog-style synth: two detuned saws and a sub square through an enveloped low-pass
