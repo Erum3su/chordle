@@ -294,6 +294,8 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
 .opps{display:flex;flex-direction:column;gap:10px}
 .opps:empty{display:none}
 @media (min-width:760px){.opps{position:absolute;top:0;right:calc(50% + 216px);width:max-content;max-height:100%;overflow-y:auto}}
+@media (min-width:760px){.pboard .opps{right:calc(50% + 316px)}}
+@media (min-width:760px) and (max-width:1239px){.pboard{flex-direction:column;align-items:center;gap:10px}.pboard .opps{position:static;order:-1;flex-direction:row;max-width:100%;overflow-x:auto;max-height:none}.pboard .opp{flex:0 0 auto;flex-direction:row;align-items:center;padding:6px 8px}.pboard .opp .who{max-width:72px}.pboard .opp .mrow i{width:8px;height:8px}.pboard .opp .mini,.pboard .opp .mrow{gap:2px}}
 .opp{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;opacity:.9}
 .opp .who{font-size:.78rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
 .opp .mini{display:flex;flex-direction:column;gap:3px}
@@ -401,7 +403,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <button type="button" class="play alt" id="pTonic"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>听主和弦</span></button>
     </div>
     <div class="pkey" id="pKey"></div>
-    <div class="pgrid" id="pGrid"></div>
+    <div class="board pboard" id="pBoard"><div class="pgrid" id="pGrid"></div></div>
     <div class="msg" id="pMsg" role="status"></div>
     <div class="result" id="pResult" hidden>
       <div class="name" id="pAnsRn"></div>
@@ -1389,17 +1391,26 @@ let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTime
 // ---------- mode ----------
 let MODE = store.get('mode', 'single') === 'prog' ? 'prog' : 'single';
 function setMode(m){
-  if(m === 'prog' && VS.room){ setMsg(L('对战中只能玩单个和弦，先离开房间再切换。', 'Versus is single-chord only. Leave the room to switch.'), true); return; }
+  if(m === MODE) return;
+  if(VS.room && (!VS.host || vsBusy())){ (MODE === 'prog' ? pMsg : setMsg)(L('对战中只有房主能在两局之间切换模式。', 'In versus only the host can switch modes, between rounds.'), true); return; }
+  if(VS.room){
+    // the new mode starts empty; the host starts its first round from the room bar
+    if(m === 'prog'){ P.seq = null; P.tries = []; P.cur = []; P.over = false; $('pResult').hidden = true; $('pAct').hidden = false; }
+    else { chord = null; tries = []; sel = []; over = false; $('result').hidden = true; $('actBtns').hidden = false; renderGrid(); }
+  }
   MODE = m; store.set('mode', m); applyMode();
+  if(VS.room){ (m === 'prog' ? pMsg : setMsg)(L('已切换模式，点“下一局”开始。', 'Mode switched. Press “Next round” to start.')); vsPublish(); vsRender(); }
 }
 function applyMode(){
   const prog = MODE === 'prog';
   document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === MODE));
   $('singleStage').hidden = prog; $('progStage').hidden = !prog;
-  $('typeBox').hidden = prog; $('vsBox').hidden = prog;
+  $('typeBox').hidden = prog;
+  (prog ? $('pBoard') : document.querySelector('#singleStage .board')).appendChild($('opps'));
   $('modeNote').textContent = prog ? L('先告诉你调，听一串和弦，用级数猜出整条进行', 'You get the key, hear a few chords, and name the progression in Roman numerals') : '';
   document.querySelector('h1 small').textContent = prog ? L('听一串和弦，猜出整条进行', 'Hear a progression, name every chord') : L('听一遍，在琴键上找出它', 'Hear a chord, find it on the keys');
-  if(prog && !P.seq) progNew();
+  if(prog && !P.seq && !VS.room) progNew();
+  if(prog) progRender();
   renderAll();
 }
 document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
@@ -1447,16 +1458,23 @@ const KEYS_FLAT = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B
 const noteIn = (key, pc) => (SHARP_KEYS.has(key) ? KEYS_SHARP : KEYS_FLAT)[pc % 12];
 const rnName = (key, r) => { const [d, id] = RN[r]; return noteIn(key, key + d) + TYPES.find(t => t.id === id).sym; };
 const P = {key:0, seq:null, voices:[], tries:[], cur:[], over:false, solvedAt:[], solvedMs:[], start:0};
-function progNew(){
+function progNew(seed){
+  if(VS.room && seed == null){ if(VS.host && (P.over || VS.round === 0)) hostNextRound(); return; }
+  R = seed == null ? Math.random : mulberry32(seed);
+  progPick();
+  R = Math.random;
+  VS.startMs = performance.now(); VS.ms = 0;
+  P.voices = voiceProg(P.key, P.seq);
+  $('pResult').hidden = true; $('pAct').hidden = false;
+  pMsg(VS.room ? L(`第 ${VS.round} 局开始，先听主和弦找调性。`, `Round ${VS.round}. Play the tonic to find the key.`) : L('先听主和弦找到调性，再播放和弦进行。', 'Play the tonic to find the key, then play the progression.'));
+  progRender();  if(VS.room){ renderAll(); vsPublish(); vsRender(); }
+}
+function progPick(){
   // hard/expert: pick the length first so long progressions come up as often as short ones
   const all = PROGS[diff], lens = [...new Set(all.map(x => x.length))], len = lens[rand(lens.length)];
   const list = (diff === 'hard' || diff === 'expert') ? all.filter(x => x.length === len) : all;
   P.seq = list[rand(list.length)].slice();
   P.key = rand(12); P.tries = []; P.cur = []; P.over = false; P.solvedAt = P.seq.map(() => null); P.solvedMs = P.seq.map(() => null); P.start = performance.now();
-  P.voices = voiceProg(P.key, P.seq);
-  $('pResult').hidden = true; $('pAct').hidden = false;
-  pMsg(L('先听主和弦找到调性，再播放和弦进行。', 'Play the tonic to find the key, then play the progression.'));
-  progRender();
 }
 // bass on the root in the low register, upper voices in close position moving as little as possible
 function voiceProg(key, seq){
@@ -1545,13 +1563,17 @@ function progSubmit(){
   if(won) progFinish(true);
   else if(P.tries.length >= MAX_TRIES) progFinish(false);
   else pMsg(L(`还剩 ${MAX_TRIES - P.tries.length} 次机会。`, `${MAX_TRIES - P.tries.length} tries left.`));
+  vsPublish();
 }
 function progFinish(won){
   P.over = true;
   const ps = progStats;
-  ps.played++;
   const ms = performance.now() - P.start;
-  if(won){ ps.won++; ps.streak++; ps.best = Math.max(ps.best, ps.streak); ps.dist[P.tries.length - 1]++; addTime(ps, ms); } else { ps.streak = 0; ps.dist[6]++; }
+  // versus rounds count toward per-chord stats, but not your solo record (same as single-chord versus)
+  if(!VS.room){
+    ps.played++;
+    if(won){ ps.won++; ps.streak++; ps.best = Math.max(ps.best, ps.streak); ps.dist[P.tries.length - 1]++; addTime(ps, ms); } else { ps.streak = 0; ps.dist[6]++; }
+  }
   P.seq.forEach((r, i) => {
     const d = ps.rn[r] || (ps.rn[r] = {n:0, won:0, tries:0});
     d.n++; if(P.solvedAt[i] != null){ d.won++; d.tries += P.solvedAt[i]; addTime(d, P.solvedMs[i]); }
@@ -1561,6 +1583,13 @@ function progFinish(won){
   bump(pd, 'game', won, P.tries.length, ms);
   P.seq.forEach((r, i) => bump(pd.rn, r, P.solvedAt[i] != null, P.solvedAt[i], P.solvedMs[i]));
   store.set('statsByDiff', byDiff);
+  if(VS.room){
+    $('pAnsRn').textContent = P.seq.join(' – ');
+    $('pAnsNames').textContent = L(`${KEYN[P.key]} 大调 · `, `${KEYN[P.key]} major · `) + P.seq.map(r => rnName(P.key, r)).join(' – ');
+    $('pResult').hidden = false; $('pResult').classList.toggle('win', won); $('pAct').hidden = true;
+    if(won) celebrate(1);
+    progRender(); vsProgFinish(won); return;
+  }
   const praise = L(['一次就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'], ['Got it in one!','Beautiful!','Very good!','Nice!','Phew, close one.','Last try, nailed it!']);
   pMsg(won ? praise[P.tries.length - 1] : L('这次没猜中，答案是：', 'Not this time. The answer was:'));
   $('pAnsRn').textContent = P.seq.join(' – ');
@@ -1576,7 +1605,7 @@ function progFinish(won){
 $('pPlay').onclick = () => { if(P.seq){ playVoices(P.voices); if(!P.tries.length && !P.cur.length) pMsg(''); } };
 $('pTonic').onclick = () => { if(P.seq) playVoices(tonicVoices()); };
 $('pReplay').onclick = () => P.seq && playVoices(P.voices);
-$('pNext').onclick = progNew;
+$('pNext').onclick = () => progNew();
 $('pClear').onclick = () => { P.cur = []; progRender(); };
 $('pSubmit').onclick = progSubmit;
 $('pGive').onclick = () => { if(P.seq && !P.over){ progFinish(false); } };
@@ -1680,9 +1709,9 @@ const rowCode = t => t.res.map(r => r === 'ok' ? 'o' : r === 'near' ? 'n' : 'm')
 
 function vsPublish(){
   if(!VS.room) return;
-  const solved = over && tries.length && tries[tries.length-1].res.every(r => r === 'ok');
-  const me = {v:1, nick: myNick(), role: VS.host ? 'host' : 'guest', round: VS.round, n: chord ? chord.notes.length : 0,
-    rows: tries.map(rowCode), done: !!over, solved: !!solved, ms: Math.round(VS.ms)};
+  const st = vsState();
+  const me = {v:1, nick: myNick(), role: VS.host ? 'host' : 'guest', round: VS.round, mode: MODE, n: st.n,
+    rows: st.rows, done: st.over, solved: st.solved, ms: Math.round(VS.ms)};
   if(VS.host) Object.assign(me, {seed: VS.seed, diff, types: TYPES.map(t => t.id).filter(id => types.includes(id))});
   VS.room.presence(me).catch(() => {});
 }
@@ -1691,9 +1720,25 @@ function others(){
   return VS.room.peers().filter(p => !p.sameTab && p.kind === 'viewer' && p.presence && p.presence.v === 1);
 }
 function hostNextRound(){
-  if(!pool().length){ setMsg(L('请至少选一种和弦类型。', 'Pick at least one chord type.'), true); return; }
+  if(MODE !== 'prog' && !pool().length){ setMsg(L('请至少选一种和弦类型。', 'Pick at least one chord type.'), true); return; }
   VS.round++; VS.seed = Math.floor(Math.random()*2**31);
-  beginRound(VS.seed);
+  if(MODE === 'prog') progNew(VS.seed); else beginRound(VS.seed);
+}
+// the current round's state, whichever mode the room plays
+function vsState(){
+  if(MODE === 'prog'){
+    const last = P.tries[P.tries.length - 1];
+    return {over: P.over, rows: P.tries.map(rowCode), solved: !!(P.over && last && last.res.every(r => r === 'ok')), n: P.seq ? P.seq.length : 0, tries: P.tries.length};
+  }
+  const last = tries[tries.length - 1];
+  return {over: !!over, rows: tries.map(rowCode), solved: !!(over && last && last.res.every(r => r === 'ok')), n: chord ? chord.notes.length : 0, tries: tries.length};
+}
+const vsIdle = () => MODE === 'prog' ? !P.seq : !chord;
+const vsBusy = () => VS.round > 0 && !vsIdle() && !vsState().over;
+function vsProgFinish(won){
+  VS.ms = performance.now() - VS.startMs;
+  pMsg(won ? L(`猜对了！用了 ${P.tries.length} 次，${(VS.ms/1000).toFixed(1)} 秒。等对手结束…`, `Solved in ${P.tries.length} ${P.tries.length > 1 ? 'tries' : 'try'}, ${(VS.ms/1000).toFixed(1)}s. Waiting for the others…`) : L('这局没猜中，等对手结束…', 'Missed this one. Waiting for the others…'));
+  vsPublish(); vsCheckRound(); vsRender();
 }
 function vsFinish(won){
   VS.ms = performance.now() - VS.startMs;
@@ -1713,14 +1758,15 @@ function roundPoints(f){
   return ACC_PTS[f.n - 1] + Math.max(0, Math.round(20 - f.ms / 6000));
 }
 function vsCheckRound(){
-  if(!VS.room || !VS.round || VS.scored[VS.round] || !over) return;
+  const st = vsState();
+  if(!VS.room || !VS.round || VS.scored[VS.round] || !st.over) return;
   const ps = others().filter(p => p.presence.round === VS.round);
   if(!ps.length || ps.some(p => !p.presence.done)) return;
   VS.scored[VS.round] = true;
-  const solved = !!(over && tries.length && tries[tries.length-1].res.every(r => r === 'ok'));
+  const solved = st.solved;
   const clampN = v => Math.max(1, Math.min(MAX_TRIES, v | 0));
   const clampMs = v => Math.max(0, Math.min(3600000, Number(v) || 0));
-  const field = [{key:'me', solved, n:tries.length, ms:VS.ms}].concat(ps.map(p => ({key:p.peer, solved:!!p.presence.solved,
+  const field = [{key:'me', solved, n:st.tries, ms:VS.ms}].concat(ps.map(p => ({key:p.peer, solved:!!p.presence.solved,
     n:clampN(Array.isArray(p.presence.rows) ? p.presence.rows.length : MAX_TRIES), ms:clampMs(p.presence.ms)})));
   field.forEach(f => {
     f.pts = roundPoints(f);
@@ -1741,7 +1787,7 @@ function vsCheckRound(){
     line = (w.key === 'me' ? L('🏆 这一局你赢了！', '🏆 You won this round!') : L(`这一局 ${nameOf(ps.find(p => p.peer === w.key))} 赢了。`, `${nameOf(ps.find(p => p.peer === w.key))} won this round.`)) + L(` 你得了 ${mine} 分。`, ` You scored ${mine}.`);
     if(w.key === 'me') celebrate(2);
   }
-  setMsg(line + (VS.host ? L(' 点“下一局”继续。', ' Press “Next round” to continue.') : L(' 等房主开始下一局。', ' Waiting for the host to start the next round.')));
+  (MODE === 'prog' ? pMsg : setMsg)(line + (VS.host ? L(' 点“下一局”继续。', ' Press “Next round” to continue.') : L(' 等房主开始下一局。', ' Waiting for the host to start the next round.')));
   vsRender();
 }
 const cleanNick = v => String(v || '').replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '').trim().slice(0, 12);
@@ -1755,27 +1801,28 @@ function vsRender(){
   const live = !!VS.room;
   $('vsIdle').hidden = live; $('vsLive').hidden = !live;
   $('opps').hidden = !live; $('vsBoard').hidden = !live;
-  document.querySelector('.settings').classList.toggle('locked', live && (!VS.host || (VS.round > 0 && !over)));
-  if(!live){ $('nextBtn').textContent = L('下一题', 'Next'); $('nextBtn').disabled = false; return; }
+  document.querySelector('.settings').classList.toggle('locked', live && (!VS.host || vsBusy()));
+  if(!live){ $('nextBtn').textContent = $('pNext').textContent = L('下一题', 'Next'); $('nextBtn').disabled = $('pNext').disabled = false; return; }
   const ps = others();
   $('vsRoom').textContent = VS.code;
   const hostHere = VS.host || ps.some(p => p.presence.role === 'host');
   $('vsStatus').innerHTML = VS.offline ? '<span class="dot"></span>' + L('正在重连…', 'Reconnecting…') : !hostHere ? '<span class="dot"></span>' + L('房主已离开', 'The host left') :
     ps.length ? '' : '<span class="dot"></span>' + L('等待对手加入…', 'Waiting for an opponent…');
   renderBoard(ps);
-  $('vsStart').hidden = !(VS.host && VS.round === 0);
+  $('vsStart').hidden = !(VS.host && (VS.round === 0 || vsIdle()));
+  $('vsStart').textContent = VS.round === 0 ? L('开始对战', 'Start') : L('下一局', 'Next round');
   $('vsStart').disabled = !ps.length;
-  $('nextBtn').textContent = VS.host ? L('下一局', 'Next round') : L('等待房主', 'Waiting for host');
-  $('nextBtn').disabled = !VS.host;
+  $('nextBtn').textContent = $('pNext').textContent = VS.host ? L('下一局', 'Next round') : L('等待房主', 'Waiting for host');
+  $('nextBtn').disabled = $('pNext').disabled = !VS.host;
   const box = $('opps'); box.innerHTML = '';
   if(!ps.length) return;
   ps.forEach(p => {
-    const pr = p.presence, same = pr.round === VS.round && VS.round > 0;
+    const pr = p.presence, same = pr.round === VS.round && VS.round > 0, myN = vsState().n || 3;
     const card = document.createElement('div'); card.className = 'opp';
     const who = document.createElement('div'); who.className = 'who'; who.textContent = nameOf(p); card.appendChild(who);
     const mini = document.createElement('div'); mini.className = 'mini';
     const rows = same && Array.isArray(pr.rows) ? pr.rows : [];
-    const n = same ? (pr.n | 0) || (chord ? chord.notes.length : 3) : (chord ? chord.notes.length : 3);
+    const n = same ? (pr.n | 0) || myN : myN;
     for(let r = 0; r < MAX_TRIES; r++){
       const row = document.createElement('div'); row.className = 'mrow';
       const code = String(rows[r] || '');
@@ -1869,13 +1916,16 @@ function onRoomPeers(){
   if(!VS.host){
     const h = others().find(p => p.presence.role === 'host');
     const hp = h && h.presence;
+    const hm = hp && (hp.mode === 'prog' ? 'prog' : 'single');
     if(hp && hp.round > 0 && hp.round !== VS.round && typeof hp.seed === 'number'){
       if(DIFF[hp.diff]) diff = hp.diff;
       if(Array.isArray(hp.types)) types = hp.types.filter(id => TYPES.some(t => t.id === id));
       VS.round = hp.round; VS.seed = hp.seed;
-      beginRound(hp.seed);
+      if(hm !== MODE){ MODE = hm; applyMode(); }
+      if(MODE === 'prog') progNew(hp.seed); else beginRound(hp.seed);
     } else if(hp && hp.round === 0 && VS.round === 0){
       if(DIFF[hp.diff] && hp.diff !== diff){ diff = hp.diff; renderAll(); }
+      if(hm !== MODE){ MODE = hm; applyMode(); }
     }
   }
   vsCheckRound();
@@ -1917,8 +1967,9 @@ async function vsEnter(code, host){
     const room = await VS.api.join('vs-' + code);
     Object.assign(VS, {code, host, round:0, seed:0, scored:{}, wins:{me:0}, board:{}, hist:[], sawHost:host, offline:false});
     vsAttach(room);
-    if(host){ chord = null; tries = []; sel = []; over = false; renderGrid(); setMsg(L('房间已创建。把房间号发给对手，TA 加入后点“开始对战”。', 'Room created. Send the code to your opponent, then press “Start” once they join.')); }
-    else setMsg(L('已加入，等房主开始…', 'Joined. Waiting for the host to start…'));
+    P.seq = null; P.tries = []; P.cur = []; P.over = false; $('pResult').hidden = true; $('pAct').hidden = false; progRender();
+    if(host){ chord = null; tries = []; sel = []; over = false; renderGrid(); (MODE === 'prog' ? pMsg : setMsg)(L('房间已创建。把房间号发给对手，TA 加入后点“开始对战”。', 'Room created. Send the code to your opponent, then press “Start” once they join.')); }
+    else (MODE === 'prog' ? pMsg : setMsg)(L('已加入，等房主开始…', 'Joined. Waiting for the host to start…'));
     renderAll(); vsPublish(); vsRender();
   }catch(e){
     $('vsNote').textContent = e && e.code === 'not_permitted' ? L('这个账号不能使用对战房间。', 'This account can’t use versus rooms.') : L('没能进入房间，请稍后再试。', 'Couldn’t join the room. Try again later.');
@@ -1930,7 +1981,7 @@ function vsExit(){
   clearTimeout(VS.hostT); VS.hostT = 0;
   if(r) r.leave().catch(() => {});
   $('vsNote').textContent = '';
-  vsRender(); beginRound(null);
+  vsRender(); if(MODE === 'prog') progNew(); else beginRound(null);
 }
 $('vsCreate').onclick = () => vsEnter(makeCode(), true);
 $('vsJoin').onclick = () => {
@@ -1939,7 +1990,7 @@ $('vsJoin').onclick = () => {
   vsEnter(c, false);
 };
 $('vsCode').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('vsJoin').click(); } });
-$('vsStart').onclick = () => { if(VS.host && VS.round === 0) hostNextRound(); vsRender(); };
+$('vsStart').onclick = () => { if(VS.host && (VS.round === 0 || vsIdle())) hostNextRound(); vsRender(); };
 $('vsLeave').onclick = vsExit;
 $('vsRoom').onclick = () => {
   const t = VS.code, el = $('vsRoom');
