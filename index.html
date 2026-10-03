@@ -85,6 +85,7 @@ button.inst::after{display:none}
 .sdlg h5{margin:2px 0 -4px;font-size:.8rem;color:var(--muted);font-weight:600}
 .ssum div{display:flex;flex-direction:column}
 .ssum b{font-family:var(--mono);font-size:1.3rem}
+@media (max-width:480px){.ssum{gap:12px}.ssum b{font-size:1.05rem}}
 .ssum span{font-size:.72rem;color:var(--muted)}
 .dist{display:flex;flex-direction:column;gap:3px;font-size:.8rem}
 .dist .r{display:grid;grid-template-columns:4.2em 1fr;white-space:nowrap;gap:6px;align-items:center}
@@ -96,6 +97,7 @@ button.inst::after{display:none}
 .stbl td:nth-child(n+2),.stbl th:nth-child(n+2){text-align:right;font-family:var(--mono)}
 .stbl .meter{display:inline-block;width:46px;height:6px;border-radius:3px;background:var(--line);vertical-align:middle;margin-left:6px;overflow:hidden}
 .stbl .meter i{display:block;height:100%;background:var(--ok)}
+@media (max-width:480px){.stbl .meter{display:none}.stbl td,.stbl th{padding:5px 4px}}
 .stbl tr.weak td:first-child::after{content:"最容易错";margin-left:6px;font-size:.68rem;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:0 6px}
 .sempty{color:var(--muted);font-size:.9rem}
 .inst{position:relative;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px 4px 10px;color:var(--fg);cursor:pointer}
@@ -937,7 +939,7 @@ function submit(){
 }
 function finish(won){
   over = true;
-  recordType(chord.type.id, won, tries.length);
+  recordType(chord.type.id, won, tries.length, performance.now() - VS.startMs);
   if(VS.room) return vsFinish(won);
   stats.played++;
   const lost = stats.streak;
@@ -1403,13 +1405,13 @@ const SHARP_KEYS = new Set([2, 4, 6, 7, 9, 11]); // D E F♯ G A B major use sha
 const KEYS_FLAT = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
 const noteIn = (key, pc) => (SHARP_KEYS.has(key) ? KEYS_SHARP : KEYS_FLAT)[pc % 12];
 const rnName = (key, r) => { const [d, id] = RN[r]; return noteIn(key, key + d) + TYPES.find(t => t.id === id).sym; };
-const P = {key:0, seq:null, voices:[], tries:[], cur:[], over:false, solvedAt:[]};
+const P = {key:0, seq:null, voices:[], tries:[], cur:[], over:false, solvedAt:[], solvedMs:[], start:0};
 function progNew(){
   // hard/expert: pick the length first so long progressions come up as often as short ones
   const all = PROGS[diff], lens = [...new Set(all.map(x => x.length))], len = lens[rand(lens.length)];
   const list = (diff === 'hard' || diff === 'expert') ? all.filter(x => x.length === len) : all;
   P.seq = list[rand(list.length)].slice();
-  P.key = rand(12); P.tries = []; P.cur = []; P.over = false; P.solvedAt = P.seq.map(() => null);
+  P.key = rand(12); P.tries = []; P.cur = []; P.over = false; P.solvedAt = P.seq.map(() => null); P.solvedMs = P.seq.map(() => null); P.start = performance.now();
   P.voices = voiceProg(P.key, P.seq);
   $('pResult').hidden = true; $('pAct').hidden = false;
   pMsg('先听主和弦找到调性，再播放和弦进行。');
@@ -1494,7 +1496,7 @@ function progSubmit(){
   if(P.cur.length !== P.seq.length){ pMsg(`需要选 ${P.seq.length} 个和弦，现在选了 ${P.cur.length} 个。`, true); return; }
   const guess = P.cur.slice(), res = progEval(guess);
   P.tries.push({guess, res}); P.cur = [];
-  res.forEach((x, i) => { if(x === 'ok' && P.solvedAt[i] == null) P.solvedAt[i] = P.tries.length; });
+  res.forEach((x, i) => { if(x === 'ok' && P.solvedAt[i] == null){ P.solvedAt[i] = P.tries.length; P.solvedMs[i] = performance.now() - P.start; } });
   const won = res.every(x => x === 'ok');
   progRender(P.tries.length - 1);
   if(won) progFinish(true);
@@ -1505,15 +1507,16 @@ function progFinish(won){
   P.over = true;
   const ps = progStats;
   ps.played++;
-  if(won){ ps.won++; ps.streak++; ps.best = Math.max(ps.best, ps.streak); ps.dist[P.tries.length - 1]++; } else { ps.streak = 0; ps.dist[6]++; }
+  const ms = performance.now() - P.start;
+  if(won){ ps.won++; ps.streak++; ps.best = Math.max(ps.best, ps.streak); ps.dist[P.tries.length - 1]++; addTime(ps, ms); } else { ps.streak = 0; ps.dist[6]++; }
   P.seq.forEach((r, i) => {
     const d = ps.rn[r] || (ps.rn[r] = {n:0, won:0, tries:0});
-    d.n++; if(P.solvedAt[i] != null){ d.won++; d.tries += P.solvedAt[i]; }
+    d.n++; if(P.solvedAt[i] != null){ d.won++; d.tries += P.solvedAt[i]; addTime(d, P.solvedMs[i]); }
   });
   store.set('progStats', ps);
   const pd = byDiff.prog[diff] || (byDiff.prog[diff] = {rn:{}});
-  bump(pd, 'game', won, P.tries.length);
-  P.seq.forEach((r, i) => bump(pd.rn, r, P.solvedAt[i] != null, P.solvedAt[i]));
+  bump(pd, 'game', won, P.tries.length, ms);
+  P.seq.forEach((r, i) => bump(pd.rn, r, P.solvedAt[i] != null, P.solvedAt[i], P.solvedMs[i]));
   store.set('statsByDiff', byDiff);
   const praise = ['一次就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'];
   pMsg(won ? praise[P.tries.length - 1] : '这次没猜中，答案是：');
@@ -1538,24 +1541,25 @@ $('pGive').onclick = () => { if(P.seq && !P.over){ progFinish(false); } };
 // ---------- personal stats (this browser only) ----------
 const typeStats = store.get('typeStats', {});
 const progStats = Object.assign({played:0, won:0, streak:0, best:0, dist:[0,0,0,0,0,0,0], rn:{}}, store.get('progStats', {}));
-function recordType(id, won, n){
-  const d = typeStats[id] || (typeStats[id] = {n:0, won:0, tries:0, dist:[0,0,0,0,0,0,0]});
-  d.n++;
-  if(won){ d.won++; d.tries += n; d.dist[n - 1]++; } else d.dist[6]++;
+function recordType(id, won, n, ms){
+  bump(typeStats, id, won, n, ms);
   store.set('typeStats', typeStats);
-  bump(byDiff.single[diff] || (byDiff.single[diff] = {}), id, won, n);
+  bump(byDiff.single[diff] || (byDiff.single[diff] = {}), id, won, n, ms);
   store.set('statsByDiff', byDiff);
 }
 // per-difficulty records (added later; older games only live in the totals above)
 const byDiff = store.get('statsByDiff', {});
 byDiff.single = byDiff.single || {}; byDiff.prog = byDiff.prog || {};
 const DIFF_ZH = {easy:'简单', normal:'普通', hard:'困难', expert:'大师'};
-function bump(map, key, won, n){
+function bump(map, key, won, n, ms){
   const d = map[key] || (map[key] = {n:0, won:0, tries:0, dist:[0,0,0,0,0,0,0]});
   d.n++;
-  if(won){ d.won++; d.tries += n; d.dist[n - 1]++; } else d.dist[6]++;
+  if(won){ d.won++; d.tries += n; d.dist[n - 1]++; addTime(d, ms); } else d.dist[6]++;
 }
-const sumRows = rows => rows.reduce((a, r) => ({n: a.n + r.n, won: a.won + r.won, tries: a.tries + r.tries, dist: a.dist.map((v, i) => v + r.dist[i])}), {n:0, won:0, tries:0, dist:[0,0,0,0,0,0,0]});
+// time from the start of the round to the solve; a round left open for over 10 minutes isn't timed
+function addTime(d, ms){ if(ms > 0 && ms < 600000){ d.ms = (d.ms || 0) + ms; d.mn = (d.mn || 0) + 1; } }
+const avgTime = r => r.mn ? (r.ms / r.mn / 1000).toFixed(1) + 's' : '–';
+const sumRows = rows => rows.reduce((a, r) => ({n: a.n + r.n, won: a.won + r.won, tries: a.tries + r.tries, ms: a.ms + (r.ms || 0), mn: a.mn + (r.mn || 0), dist: a.dist.map((v, i) => v + (r.dist ? r.dist[i] : 0))}), {n:0, won:0, tries:0, ms:0, mn:0, dist:[0,0,0,0,0,0,0]});
 function renderHeaderStats(){
   const S = MODE === 'prog' ? progStats : stats;
   $('sPlayed').textContent = S.played;
@@ -1573,14 +1577,14 @@ function distHtml(dist){
 function tableHtml(rows, head, noWeak){
   const played = rows.filter(r => r.n >= 3);
   const weak = !noWeak && played.length >= 2 ? played.reduce((a, b) => (b.won / b.n < a.won / a.n || (b.won / b.n === a.won / a.n && (b.won ? b.tries / b.won : 9) > (a.won ? a.tries / a.won : 9))) ? b : a) : null;
-  return `<table class="stbl"><thead><tr><th>${head}</th><th>局数</th><th>猜对率</th><th>平均几次猜对</th></tr></thead><tbody>` +
+  return `<table class="stbl"><thead><tr><th>${head}</th><th>局数</th><th>猜对率</th><th>平均几次</th><th>平均用时</th></tr></thead><tbody>` +
     rows.map(r => { const pct = Math.round(r.won / r.n * 100);
-      return `<tr${r === weak && pct < 100 ? ' class="weak"' : ''}><td>${r.label}</td><td>${r.n}</td><td>${pct}%<span class="meter"><i style="width:${pct}%"></i></span></td><td>${r.won ? (r.tries / r.won).toFixed(1) : '–'}</td></tr>`; }).join('') +
+      return `<tr${r === weak && pct < 100 ? ' class="weak"' : ''}><td>${r.label}</td><td>${r.n}</td><td>${pct}%<span class="meter"><i style="width:${pct}%"></i></span></td><td>${r.won ? (r.tries / r.won).toFixed(1) : '–'}</td><td>${avgTime(r)}</td></tr>`; }).join('') +
     '</tbody></table>';
 }
 let statsDiff = 'all';
 const typeLabel = t => t.zh + (t.sym ? ' <span class="diffnote">' + (t.chip || t.sym).trim() + '</span>' : '');
-const sumHtml = (t, best) => `<div class="ssum"><div><b>${t.n}</b><span>局数</span></div><div><b>${Math.round(t.won / t.n * 100)}%</b><span>猜对率</span></div><div><b>${t.won ? (t.tries / t.won).toFixed(1) : '–'}</b><span>平均几次猜对</span></div>${best == null ? '' : `<div><b>${best}</b><span>最长连胜</span></div>`}</div>`;
+const sumHtml = (t, best) => `<div class="ssum"><div><b>${t.n}</b><span>局数</span></div><div><b>${Math.round(t.won / t.n * 100)}%</b><span>猜对率</span></div><div><b>${t.won ? (t.tries / t.won).toFixed(1) : '–'}</b><span>平均几次猜对</span></div><div><b>${avgTime(t)}</b><span>平均猜中用时</span></div>${best == null ? '' : `<div><b>${best}</b><span>最长连胜</span></div>`}</div>`;
 function diffTable(game, total){
   const rows = Object.keys(DIFF_ZH).map(d => ({label: DIFF_ZH[d], ...game(d)})).filter(r => r.n);
   const rest = total - rows.reduce((a, r) => a + r.n, 0);
@@ -1601,7 +1605,7 @@ function renderStats(){
       + (all ? '<h5>各和弦类型</h5>' : '') + tableHtml(rows, '和弦类型');
   } else {
     const ps = progStats, pd = byDiff.prog[statsDiff];
-    const g = all ? {n: ps.played, won: ps.won, tries: ps.dist.slice(0, 6).reduce((a, v, i) => a + v * (i + 1), 0), dist: ps.dist} : (pd && pd.game) || {n:0};
+    const g = all ? {n: ps.played, won: ps.won, tries: ps.dist.slice(0, 6).reduce((a, v, i) => a + v * (i + 1), 0), dist: ps.dist, ms: ps.ms, mn: ps.mn} : (pd && pd.game) || {n:0};
     if(!g.n){ body.innerHTML = `<div class="sempty">还没有${dz}难度的记录。玩几局和弦进行，这里会统计每个级数和弦的猜对率和平均用几次猜对。</div>`; return; }
     const src = all ? ps.rn : pd.rn;
     const rows = RN_ORDER.filter(r => src[r] && src[r].n).map(r => ({label: r, ...src[r]})).sort((a, b) => b.n - a.n);
