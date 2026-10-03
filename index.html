@@ -44,7 +44,11 @@ body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
 h1{font-family:var(--display);font-weight:900;font-size:2rem;margin:0;letter-spacing:.01em;line-height:1.1;text-wrap:balance}
 h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:4px}
-.stats{display:flex;gap:18px;font-variant-numeric:tabular-nums}
+.stats{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums}
+.sline{border:0;background:none;padding:0;font:inherit;font-size:.8rem;color:var(--muted);cursor:pointer;white-space:nowrap}
+.sline:hover{color:var(--fg)}
+.sline b{font-family:var(--mono);font-weight:600;color:var(--fg)}
+.sline .hot b{color:var(--accent);animation:pulse 1.2s ease-in-out infinite}
 .hright{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
 .hbtns{display:flex;gap:8px;align-items:center}
 button.inst{font:inherit;font-size:.85rem;font-weight:500}
@@ -106,7 +110,7 @@ button.inst::after{display:none}
 .inst::after{content:"";position:absolute;right:11px;top:50%;width:6px;height:6px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
 .inst:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 .inst.loading svg{animation:pulse 1s ease-in-out infinite}
-@media (max-width:480px){.hright{gap:6px}}
+@media (max-width:480px){.hright{gap:6px;align-items:flex-start}}
 .stat{display:flex;flex-direction:column;align-items:flex-end}
 .stat b{font-family:var(--mono);font-size:1.25rem}
 .stat span{font-size:.72rem;color:var(--muted);letter-spacing:.08em}
@@ -323,10 +327,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
     <label class="inst" title="音色"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg><select id="instSel" aria-label="音色"></select></label>
     </div>
     <div class="stats">
-      <div class="stat"><b id="sPlayed">0</b><span>局数</span></div>
-      <div class="stat"><b id="sWin">0%</b><span>胜率</span></div>
-      <div class="stat" id="streakStat"><b id="sStreak">0</b><span>连胜</span></div>
-      <div class="stat"><b id="sBest">0</b><span>最佳</span></div>
+      <button type="button" class="sline" id="sLine" title="查看详细统计"></button>
       <span class="titlechip" id="sTitle" hidden></span>
     </div>
     </div>
@@ -1562,11 +1563,9 @@ const avgTime = r => r.mn ? (r.ms / r.mn / 1000).toFixed(1) + 's' : '–';
 const sumRows = rows => rows.reduce((a, r) => ({n: a.n + r.n, won: a.won + r.won, tries: a.tries + r.tries, ms: a.ms + (r.ms || 0), mn: a.mn + (r.mn || 0), dist: a.dist.map((v, i) => v + (r.dist ? r.dist[i] : 0))}), {n:0, won:0, tries:0, ms:0, mn:0, dist:[0,0,0,0,0,0,0]});
 function renderHeaderStats(){
   const S = MODE === 'prog' ? progStats : stats;
-  $('sPlayed').textContent = S.played;
-  $('sWin').textContent = S.played ? Math.round(S.won / S.played * 100) + '%' : '0%';
-  $('sStreak').textContent = S.streak;
-  $('sBest').textContent = S.best;
-  $('streakStat').classList.toggle('hot', S.streak >= 3);
+  $('sLine').innerHTML = S.played
+    ? `<b>${S.played}</b> 局 · 胜率 <b>${Math.round(S.won / S.played * 100)}%</b> · <span class="${S.streak >= 3 ? 'hot' : ''}">连胜 <b>${S.streak}</b></span>（最佳 ${S.best}）`
+    : '还没有战绩';
   const tt = MODE === 'prog' ? null : titleFor(stats.best); $('sTitle').hidden = !tt; $('sTitle').textContent = tt || '';
 }
 let statsTab = 'single';
@@ -1614,6 +1613,7 @@ function renderStats(){
       + (all ? '<h5>各级数和弦</h5>' : '') + tableHtml(rows, '级数和弦');
   }
 }
+$('sLine').onclick = () => $('statsBtn').click();
 $('statsBtn').onclick = () => { statsTab = MODE; statsDiff = 'all'; renderStats(); $('statsDlg').showModal(); };
 $('statsClose').onclick = () => $('statsDlg').close();
 $('statsDlg').addEventListener('click', e => { if(e.target === $('statsDlg')) $('statsDlg').close(); });
