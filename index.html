@@ -239,7 +239,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;margin:0 auto;opacity:.8}
 @media (hover:none){footer .keys{display:none}}
 /* versus */
-.vs{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;display:flex;flex-direction:column;gap:6px}
+.vs{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.playrow{padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.vs + .settings{}
+#vsBox:not([hidden]){padding-bottom:12px;border-bottom:1px solid var(--line);margin:-2px 0 12px}
 .vs .diffnote:empty{display:none}
 .vs .row{gap:8px 10px}
 .vs input.nick{font-family:var(--body);width:9em}
@@ -337,6 +340,33 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
   </header>
 
   <div class="panel">
+  <div class="row playrow">
+    <span class="label">玩法</span>
+    <div class="seg" id="playSeg">
+      <button type="button" data-play="solo">单人</button>
+      <button type="button" data-play="vs">对战</button>
+    </div>
+  </div>
+  <section class="vs" id="vsBox" aria-label="对战">
+    <div class="row" id="vsIdle">
+      <input id="vsNick" maxlength="12" placeholder="你的名字" autocomplete="off" aria-label="你的名字" class="nick">
+      <button type="button" class="btn primary" id="vsCreate">创建房间</button>
+      <input id="vsCode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="4 位房间号" autocomplete="off" spellcheck="false" aria-label="房间号">
+      <button type="button" class="btn" id="vsJoin">加入</button>
+      <span class="diffnote" id="vsNote"></span>
+    </div>
+    <div class="row" id="vsLive" hidden>
+      <span>房间 <button type="button" class="code linkbtn" id="vsRoom" title="点击复制房间号"></button></span>
+      <span class="diffnote" id="vsStatus"></span>
+      <span class="diffnote" id="vsRound"></span>
+      <button type="button" class="btn primary" id="vsStart" hidden>开始对战</button>
+      <button type="button" class="btn" id="vsLeave">离开</button>
+    </div>
+    <div class="sboard" id="vsBoard" hidden>
+      <div class="lb" id="vsScore" role="list" aria-label="积分榜"></div>
+      <details class="rules"><summary>计分规则</summary>第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。</details>
+    </div>
+  </section>
   <section class="settings" aria-label="设置">
     <div class="row">
       <span class="label">模式</span>
@@ -373,28 +403,6 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
     </details>
   </section>
 
-  <section class="vs" id="vsBox" aria-label="对战">
-    <div class="row" id="vsIdle">
-      <span class="label">对战</span>
-      <input id="vsNick" maxlength="12" placeholder="你的名字" autocomplete="off" aria-label="你的名字" class="nick">
-      <button type="button" class="btn primary" id="vsCreate">创建房间</button>
-      <input id="vsCode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="4 位房间号" autocomplete="off" spellcheck="false" aria-label="房间号">
-      <button type="button" class="btn" id="vsJoin">加入</button>
-      <span class="diffnote" id="vsNote"></span>
-    </div>
-    <div class="row" id="vsLive" hidden>
-      <span class="label">对战</span>
-      <span>房间 <button type="button" class="code linkbtn" id="vsRoom" title="点击复制房间号"></button></span>
-      <span class="diffnote" id="vsStatus"></span>
-      <span class="diffnote" id="vsRound"></span>
-      <button type="button" class="btn primary" id="vsStart" hidden>开始对战</button>
-      <button type="button" class="btn" id="vsLeave">离开</button>
-    </div>
-    <div class="sboard" id="vsBoard" hidden>
-      <div class="lb" id="vsScore" role="list" aria-label="积分榜"></div>
-      <details class="rules"><summary>计分规则</summary>第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。</details>
-    </div>
-  </section>
   </div>
 
   <section class="stage" id="progStage" hidden aria-label="和弦进行">
@@ -1733,6 +1741,17 @@ function vsState(){
   const last = tries[tries.length - 1];
   return {over: !!over, rows: tries.map(rowCode), solved: !!(over && last && last.res.every(r => r === 'ok')), n: chord ? chord.notes.length : 0, tries: tries.length};
 }
+let PLAY = store.get('play', 'solo') === 'vs' ? 'vs' : 'solo';
+function setPlay(v){
+  if(v === 'solo' && VS.room) vsExit();
+  PLAY = v; store.set('play', v); applyPlay();
+}
+function applyPlay(){
+  if(VS.room) PLAY = 'vs';
+  document.querySelectorAll('#playSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.play === PLAY));
+  $('vsBox').hidden = PLAY !== 'vs';
+}
+document.querySelectorAll('#playSeg button').forEach(b => b.onclick = () => setPlay(b.dataset.play));
 const vsIdle = () => MODE === 'prog' ? !P.seq : !chord;
 const vsBusy = () => VS.round > 0 && !vsIdle() && !vsState().over;
 function vsProgFinish(won){
@@ -1799,6 +1818,7 @@ function nameOf(p){
 }
 function vsRender(){
   const live = !!VS.room;
+  applyPlay();
   $('vsIdle').hidden = live; $('vsLive').hidden = !live;
   $('opps').hidden = !live; $('vsBoard').hidden = !live;
   document.querySelector('.settings').classList.toggle('locked', live && (!VS.host || vsBusy()));
@@ -2020,7 +2040,7 @@ try{ loadSamples(); }catch(e){}
     sel.blur();
   });
 }
-const STATIC_EN = {"听一个钢琴和弦，在琴键上找出它。可以单人玩，也可以开房间和朋友对战。": "Hear a piano chord and find it on the keys. Play solo or open a room and challenge friends.", "个人统计": "Your stats", "统计": "Stats", "音色": "Instrument", "查看详细统计": "See detailed stats", "设置": "Settings", "模式": "Mode", "单个和弦": "Single chord", "和弦进行": "Progression", "难度": "Difficulty", "简单": "Easy", "普通": "Normal", "困难": "Hard", "大师": "Master", "和弦类型": "Chord types", "鼠标悬停（手机上长按）可以看每种和弦的色彩听感。": "Hover over a type (long-press on phones) to see what it sounds like.", "全部三和弦": "All triads", "全部七和弦": "All 7ths", "全部色彩和弦": "All colour chords", "全部扩展和弦": "All extended", "全选": "Select all", "取消选择": "Clear", "对战": "Versus", "你的名字": "Your name", "创建房间": "Create room", "4 位房间号": "4-digit code", "房间号": "Room code", "加入": "Join", "房间": "Room", "点击复制房间号": "Click to copy the code", "开始对战": "Start", "离开": "Leave", "积分榜": "Scoreboard", "计分规则": "Scoring", "第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。": "Solving on try 1–6 scores 100, 80, 60, 45, 30 or 20, plus a speed bonus of up to +20 that drops by 1 every 6 seconds. A miss scores 0. The top scorer each round gets a win.", "播放和弦进行": "Play progression", "听主和弦": "Play tonic", "再听一遍": "Play again", "下一题": "Next", "清除": "Clear", "提交": "Submit", "放弃": "Give up", "完全正确": "Exactly right", "根音级数对，和弦性质不对": "Right degree, wrong quality", "不对": "Wrong", "播放和弦": "Play chord", "播放我的选择": "Play my notes", "对手进度": "Opponents", "颜色说明": "Colour key", "音名和位置都对": "Right note, right octave", "音名对，八度不对": "Right note, wrong octave", "不在和弦里": "Not in the chord", "快捷键指南": "Keyboard shortcuts", "关闭": "Close", "单个和弦：琴键（和 GarageBand 的“音乐键入”一样）": "Single chord: piano keys (same as GarageBand’s Musical Typing)", "键位整体降 / 升一个八度（琴键上的字母会跟着移动）": "Shift the keys down / up an octave (the letters on the piano follow)", "选级数和弦，每个按钮右上角标着对应的键": "Pick a chord; each button shows its key in the corner", "两种模式通用": "Both modes", "空格": "Space", "播放题目": "Play the question", "单个和弦：播放我选的音；和弦进行：听主和弦": "Single chord: play my notes · Progression: play the tonic", "提交；结束后进入下一题": "Submit, or go to the next question when done", "删掉最后一个": "Delete the last pick", "全部清除": "Clear all", "重听第几次的猜测": "Replay that guess", "难度：简单 / 普通 / 困难 / 大师": "Difficulty: Easy / Normal / Hard / Master", "切换单个和弦 / 和弦进行": "Switch between single chord and progression", "换下一个音色": "Next instrument", "打开个人统计": "Open your stats", "打开 / 关闭这份指南，": "Open / close this guide;", "关闭弹窗": "closes dialogs", "全部": "All", "统计只保存在这台设备的浏览器里。": "Stats are saved only in this browser.", "清空统计": "Clear stats", "按": "Press", "查看快捷键指南 ·": "for shortcuts ·", "点已提交的行可重听": "Click a submitted row to replay it", "乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）": "Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0)", "中文 / English": "中文 / English"};
+const STATIC_EN = {"听一个钢琴和弦，在琴键上找出它。可以单人玩，也可以开房间和朋友对战。": "Hear a piano chord and find it on the keys. Play solo or open a room and challenge friends.", "个人统计": "Your stats", "统计": "Stats", "音色": "Instrument", "查看详细统计": "See detailed stats", "设置": "Settings", "模式": "Mode", "单个和弦": "Single chord", "和弦进行": "Progression", "难度": "Difficulty", "简单": "Easy", "普通": "Normal", "困难": "Hard", "大师": "Master", "和弦类型": "Chord types", "鼠标悬停（手机上长按）可以看每种和弦的色彩听感。": "Hover over a type (long-press on phones) to see what it sounds like.", "全部三和弦": "All triads", "全部七和弦": "All 7ths", "全部色彩和弦": "All colour chords", "全部扩展和弦": "All extended", "全选": "Select all", "取消选择": "Clear", "对战": "Versus", "你的名字": "Your name", "创建房间": "Create room", "4 位房间号": "4-digit code", "房间号": "Room code", "加入": "Join", "房间": "Room", "点击复制房间号": "Click to copy the code", "开始对战": "Start", "离开": "Leave", "积分榜": "Scoreboard", "计分规则": "Scoring", "第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。": "Solving on try 1–6 scores 100, 80, 60, 45, 30 or 20, plus a speed bonus of up to +20 that drops by 1 every 6 seconds. A miss scores 0. The top scorer each round gets a win.", "播放和弦进行": "Play progression", "听主和弦": "Play tonic", "再听一遍": "Play again", "下一题": "Next", "清除": "Clear", "提交": "Submit", "放弃": "Give up", "完全正确": "Exactly right", "根音级数对，和弦性质不对": "Right degree, wrong quality", "不对": "Wrong", "播放和弦": "Play chord", "播放我的选择": "Play my notes", "对手进度": "Opponents", "颜色说明": "Colour key", "音名和位置都对": "Right note, right octave", "音名对，八度不对": "Right note, wrong octave", "不在和弦里": "Not in the chord", "快捷键指南": "Keyboard shortcuts", "关闭": "Close", "单个和弦：琴键（和 GarageBand 的“音乐键入”一样）": "Single chord: piano keys (same as GarageBand’s Musical Typing)", "键位整体降 / 升一个八度（琴键上的字母会跟着移动）": "Shift the keys down / up an octave (the letters on the piano follow)", "选级数和弦，每个按钮右上角标着对应的键": "Pick a chord; each button shows its key in the corner", "两种模式通用": "Both modes", "空格": "Space", "播放题目": "Play the question", "单个和弦：播放我选的音；和弦进行：听主和弦": "Single chord: play my notes · Progression: play the tonic", "提交；结束后进入下一题": "Submit, or go to the next question when done", "删掉最后一个": "Delete the last pick", "全部清除": "Clear all", "重听第几次的猜测": "Replay that guess", "难度：简单 / 普通 / 困难 / 大师": "Difficulty: Easy / Normal / Hard / Master", "切换单个和弦 / 和弦进行": "Switch between single chord and progression", "换下一个音色": "Next instrument", "打开个人统计": "Open your stats", "打开 / 关闭这份指南，": "Open / close this guide;", "关闭弹窗": "closes dialogs", "全部": "All", "玩法": "Play", "单人": "Solo", "统计只保存在这台设备的浏览器里。": "Stats are saved only in this browser.", "清空统计": "Clear stats", "按": "Press", "查看快捷键指南 ·": "for shortcuts ·", "点已提交的行可重听": "Click a submitted row to replay it", "乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）": "Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0)", "中文 / English": "中文 / English"};
 
 // static markup: translate text nodes and a few attributes by their original Chinese
 const I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'content'];
@@ -2063,6 +2083,7 @@ $('langBtn').onclick = () => {
 };
 beginRound(null);
 applyMode();
+applyPlay();
 applyLang();
 })();
 </script>
