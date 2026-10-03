@@ -1,0 +1,6 @@
+{
+  "name": "chordle",
+  "private": true,
+  "description": "Chordle: listen to a piano chord and find it on the keyboard. Solo and versus mode.",
+  "engines": { "node": ">=18" }
+}
