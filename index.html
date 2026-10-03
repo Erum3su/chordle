@@ -46,6 +46,53 @@ h1{font-family:var(--display);font-weight:900;font-size:2rem;margin:0;letter-spa
 h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:4px}
 .stats{display:flex;gap:18px;font-variant-numeric:tabular-nums}
 .hright{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.hbtns{display:flex;gap:8px;align-items:center}
+button.inst{font:inherit;font-size:.85rem;font-weight:500}
+button.inst::after{display:none}
+/* chord progression mode */
+.pkey{font-size:.9rem;color:var(--muted)}
+.pkey b{color:var(--fg);font-family:var(--mono)}
+.pgrid{display:flex;flex-direction:column;gap:5px;width:100%;max-width:520px}
+.prow{display:grid;gap:5px;grid-template-columns:repeat(var(--n),1fr)}
+.pcell{height:44px;border:2px solid var(--line);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;line-height:1.1}
+.pcell small{font-size:.68rem;font-weight:500;opacity:.8}
+.pcell.filled{border-color:var(--muted);cursor:pointer}
+.pcell.ok,.pcell.near,.pcell.miss{border-color:transparent;color:#fff}
+.pcell.ok{background:var(--ok)} .pcell.near{background:var(--near);color:#2a1f00} .pcell.miss{background:var(--miss)}
+.pcell.flip{animation:flip .45s ease both}
+.prow.done{cursor:pointer}
+.palette{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:640px}
+.pbtn{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:5px 10px;min-width:58px;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.pbtn b{font-family:var(--mono);font-size:.95rem}
+.pbtn small{font-size:.7rem;color:var(--muted)}
+.pbtn.ok{background:var(--ok);border-color:var(--ok);color:#fff} .pbtn.ok small{color:#e8f5ec}
+.pbtn.near{border-color:var(--near);box-shadow:inset 0 -3px 0 var(--near)}
+.pbtn.miss{opacity:.45}
+.pbtn:disabled{cursor:not-allowed;opacity:.4}
+/* stats dialog */
+.sdlg{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--fg);padding:16px 18px;width:min(560px,calc(100vw - 32px));max-height:min(80vh,720px)}
+.sdlg::backdrop{background:rgba(10,12,16,.45)}
+.sdlg[open]{display:flex;flex-direction:column;gap:12px}
+.sdlg-head{display:flex;justify-content:space-between;align-items:center}
+.sdlg-head b{font-family:var(--display);font-size:1.25rem}
+.sdlg-foot{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#statsBody{overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.ssum{display:flex;gap:18px;flex-wrap:wrap}
+.ssum div{display:flex;flex-direction:column}
+.ssum b{font-family:var(--mono);font-size:1.3rem}
+.ssum span{font-size:.72rem;color:var(--muted)}
+.dist{display:flex;flex-direction:column;gap:3px;font-size:.8rem}
+.dist .r{display:grid;grid-template-columns:4.2em 1fr;white-space:nowrap;gap:6px;align-items:center}
+.dist .bar{background:var(--miss);color:#fff;font-family:var(--mono);font-size:.75rem;padding:1px 6px;border-radius:3px;min-width:1.6em;text-align:right}
+.dist .bar.win{background:var(--ok)}
+.stbl{border-collapse:collapse;width:100%;font-size:.85rem;font-variant-numeric:tabular-nums}
+.stbl th{font-size:.72rem;color:var(--muted);font-weight:500;text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)}
+.stbl td{padding:5px 6px;border-bottom:1px solid var(--line)}
+.stbl td:nth-child(n+2),.stbl th:nth-child(n+2){text-align:right;font-family:var(--mono)}
+.stbl .meter{display:inline-block;width:46px;height:6px;border-radius:3px;background:var(--line);vertical-align:middle;margin-left:6px;overflow:hidden}
+.stbl .meter i{display:block;height:100%;background:var(--ok)}
+.stbl tr.weak td:first-child::after{content:"最容易错";margin-left:6px;font-size:.68rem;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:0 6px}
+.sempty{color:var(--muted);font-size:.9rem}
 .inst{position:relative;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px 4px 10px;color:var(--fg);cursor:pointer}
 .inst svg{width:14px;height:14px;fill:var(--accent);flex:none}
 .inst select{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:inherit;font:inherit;font-size:.85rem;font-weight:500;padding:0 14px 0 0;cursor:pointer;outline:none}
@@ -246,7 +293,10 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
   <header>
     <h1>Chordle<small>听一遍，在琴键上找出它</small></h1>
     <div class="hright">
+    <div class="hbtns">
+    <button type="button" class="inst" id="statsBtn" title="个人统计"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10h3v10H4zm6.5 0V4h3v16h-3zM17 20v-7h3v7h-3z"/></svg><span>统计</span></button>
     <label class="inst" title="音色"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg><select id="instSel" aria-label="音色"></select></label>
+    </div>
     <div class="stats">
       <div class="stat"><b id="sPlayed">0</b><span>局数</span></div>
       <div class="stat"><b id="sWin">0%</b><span>胜率</span></div>
@@ -259,6 +309,14 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
 
   <div class="panel">
   <section class="settings" aria-label="设置">
+    <div class="row">
+      <span class="label">模式</span>
+      <div class="seg" id="modeSeg">
+        <button type="button" data-mode="single">单个和弦</button>
+        <button type="button" data-mode="prog">和弦进行</button>
+      </div>
+      <span class="diffnote" id="modeNote"></span>
+    </div>
     <div class="row">
       <span class="label">难度</span>
       <div class="seg" id="diffSeg">
@@ -310,7 +368,36 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
   </section>
   </div>
 
-  <section class="stage">
+  <section class="stage" id="progStage" hidden aria-label="和弦进行">
+    <div class="top">
+      <button type="button" class="play" id="pPlay"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>播放和弦进行</span></button>
+      <button type="button" class="play alt" id="pTonic"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>听主和弦</span></button>
+    </div>
+    <div class="pkey" id="pKey"></div>
+    <div class="pgrid" id="pGrid"></div>
+    <div class="msg" id="pMsg" role="status"></div>
+    <div class="result" id="pResult" hidden>
+      <div class="name" id="pAnsRn"></div>
+      <div class="notes" id="pAnsNames"></div>
+      <div class="btns">
+        <button type="button" class="btn" id="pReplay">再听一遍</button>
+        <button type="button" class="btn primary" id="pNext">下一题</button>
+      </div>
+    </div>
+    <div class="palette" id="pPal"></div>
+    <div class="btns" id="pAct">
+      <button type="button" class="btn" id="pClear">清除</button>
+      <button type="button" class="btn primary" id="pSubmit">提交</button>
+      <button type="button" class="btn" id="pGive">放弃</button>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--ok)"></i>完全正确</span>
+      <span><i style="background:var(--near)"></i>根音级数对，和弦性质不对</span>
+      <span><i style="background:var(--miss)"></i>不对</span>
+    </div>
+  </section>
+
+  <section class="stage" id="singleStage">
     <div class="top">
       <button type="button" class="play" id="playBtn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>播放和弦</span><span class="cnt" id="playCnt"></span></button>
       <button type="button" class="play alt" id="playSel"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>播放我的选择</span></button>
@@ -342,6 +429,12 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <span><i style="background:var(--miss)"></i>不在和弦里</span>
     </div>
   </section>
+  <dialog class="sdlg" id="statsDlg" aria-label="个人统计">
+    <div class="sdlg-head"><b>个人统计</b><button type="button" class="btn" id="statsClose">关闭</button></div>
+    <div class="seg" id="statsTabs"><button type="button" data-t="single" aria-pressed="true">单个和弦</button><button type="button" data-t="prog">和弦进行</button></div>
+    <div id="statsBody"></div>
+    <div class="sdlg-foot"><span class="diffnote">统计只保存在这台设备的浏览器里。</span><button type="button" class="linkbtn" id="statsReset">清空统计</button></div>
+  </dialog>
   <footer><span class="keys">空格 播放 · P 播放我的选择 · 回车 提交 · 退格 清除 · </span>点已提交的行可重听<br>乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）</footer>
 </div>
 
@@ -737,6 +830,7 @@ let chord, tries, sel, keyState, playsLeft, over, locked;
 const $ = id => document.getElementById(id);
 
 function newRound(){
+  if(MODE === 'prog'){ progNew(); return; }
   if(VS.room){ if(VS.host && (over || VS.round === 0)) hostNextRound(); return; }
   beginRound(null);
 }
@@ -792,6 +886,7 @@ function submit(){
 }
 function finish(won){
   over = true;
+  recordType(chord.type.id, won, tries.length);
   if(VS.room) return vsFinish(won);
   stats.played++;
   const lost = stats.streak;
@@ -997,7 +1092,7 @@ function renderGrid(flipRow){
 function renderAll(){
   const D = DIFF[diff];
   document.querySelectorAll('#diffSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === diff));
-  $('diffNote').textContent = D.note;
+  $('diffNote').textContent = MODE === 'prog' ? PROG_NOTE[diff] : D.note;
   document.querySelectorAll('#typeChips .chip').forEach(c => { c.setAttribute('aria-pressed', types.includes(c.dataset.t)); c.hidden = !typeOkId(c.dataset.t, D); });
   $('allExt').hidden = !D.ext; $('allColor').hidden = !D.color;
   const shown = TYPES.filter(t => types.includes(t.id) && typeOk(t, D));
@@ -1013,12 +1108,7 @@ function renderAll(){
   $('clearBtn').disabled = !sel.length;
   $('playSel').disabled = !sel.length;
   vsRender();
-  $('sPlayed').textContent = stats.played;
-  $('sWin').textContent = stats.played ? Math.round(stats.won/stats.played*100)+'%' : '0%';
-  $('sStreak').textContent = stats.streak;
-  $('sBest').textContent = stats.best;
-  $('streakStat').classList.toggle('hot', stats.streak >= 3);
-  const tt = titleFor(stats.best); $('sTitle').hidden = !tt; $('sTitle').textContent = tt || '';
+  renderHeaderStats();
   renderKeys();
 }
 
@@ -1075,7 +1165,7 @@ TYPES.forEach(t => {
   $('typeChips').appendChild(b);
 });
 const setTypes = list => { types = list; store.set('types', types); settingsChanged(); };
-function settingsChanged(){ if(VS.room){ renderAll(); vsPublish(); } else newRound(); }
+function settingsChanged(){ if(VS.room){ renderAll(); vsPublish(); } else if(MODE === 'prog'){ if(!$('typeBox').hidden) return; progNew(); renderAll(); } else newRound(); }
 $('allTriads').onclick = () => setTypes(TYPES.filter(t=>t.g===3).map(t=>t.id));
 $('allSevenths').onclick = () => setTypes(TYPES.filter(t=>t.g===7).map(t=>t.id));
 $('allColor').onclick = () => setTypes(TYPES.filter(t=>t.g===6).map(t=>t.id));
@@ -1120,12 +1210,256 @@ $('kb').addEventListener('pointerdown', e => {
 });
 document.addEventListener('keydown', e => {
   if(e.target.closest && e.target.closest('input,textarea,select')) return;
+  if($('statsDlg').open) return;
+  if(MODE === 'prog'){ progKey(e); return; }
   if(e.key === ' '){ e.preventDefault(); doPlay(); }
   else if(e.key === 'p' || e.key === 'P'){ if(sel.length) playChord(sel); }
   else if(e.key === 'Enter'){ if(e.target.closest && e.target.closest('button')) return; if(over) newRound(); else submit(); }
   else if(e.key === 'Backspace'){ if(sel.length){ sel.pop(); renderGrid(); renderAll(); } }
 });
 let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { buildKeyboard(); renderKeys(); }, 150); });
+
+// ---------- mode ----------
+let MODE = store.get('mode', 'single') === 'prog' ? 'prog' : 'single';
+function setMode(m){
+  if(m === 'prog' && VS.room){ setMsg('对战中只能玩单个和弦，先离开房间再切换。', true); return; }
+  MODE = m; store.set('mode', m); applyMode();
+}
+function applyMode(){
+  const prog = MODE === 'prog';
+  document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === MODE));
+  $('singleStage').hidden = prog; $('progStage').hidden = !prog;
+  $('typeBox').hidden = prog; $('vsBox').hidden = prog;
+  $('modeNote').textContent = prog ? '先告诉你调，听一串和弦，用级数猜出整条进行' : '';
+  document.querySelector('h1 small').textContent = prog ? '听一串和弦，猜出整条进行' : '听一遍，在琴键上找出它';
+  if(prog && !P.seq) progNew();
+  renderAll();
+}
+document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+
+// ---------- chord progressions ----------
+// Roman numeral -> [semitones above the tonic, chord type id]
+const RN = {
+  'I':[0,'maj'], 'ii':[2,'min'], 'iii':[4,'min'], 'IV':[5,'maj'], 'V':[7,'maj'], 'vi':[9,'min'], 'vii°':[11,'dim'],
+  'Imaj7':[0,'maj7'], 'ii7':[2,'min7'], 'iii7':[4,'min7'], 'IVmaj7':[5,'maj7'], 'V7':[7,'dom7'], 'vi7':[9,'min7'], 'viiø7':[11,'m7b5'],
+  '♭III':[3,'maj'], 'iv':[5,'min'], '♭VI':[8,'maj'], '♭VII':[10,'maj'], 'I7':[0,'dom7'], 'II7':[2,'dom7'], 'III7':[4,'dom7'], 'VI7':[9,'dom7'],
+};
+// progressions people actually play, per difficulty
+const PROGS = {
+  easy:   [['I','IV'],['I','V'],['V','I'],['IV','I'],['I','IV','V'],['I','V','vi'],['vi','IV','I'],['I','vi','IV'],['IV','V','I'],['ii','V','I'],['I','IV','I'],['vi','V','IV']],
+  normal: [['I','V','vi','IV'],['I','vi','IV','V'],['vi','IV','I','V'],['I','IV','V','I'],['ii','V7','I'],['I','vi','ii','V7'],['IV','I','V','vi'],
+           ['I','iii','IV','V'],['I','IV','vi','V'],['vi','ii','V','I'],['IV','V','iii','vi'],['I','V','IV','V7']],
+  hard:   [['ii7','V7','Imaj7'],['Imaj7','vi7','ii7','V7'],['iii7','vi7','ii7','V7'],['Imaj7','IVmaj7','iii7','vi7'],['ii7','V7','Imaj7','vi7'],
+           ['vi7','ii7','V7','Imaj7'],['IVmaj7','V7','iii7','vi7'],['Imaj7','iii7','IVmaj7','V7'],['IVmaj7','iii7','ii7','Imaj7'],['ii7','V7','iii7','vi7']],
+  expert: [['I','♭VII','IV','I'],['I','iv','I'],['IV','iv','I'],['I','II7','IV','I'],['Imaj7','VI7','ii7','V7'],['I','♭VI','♭VII','I'],
+           ['vi7','II7','ii7','V7'],['Imaj7','I7','IVmaj7','iv'],['viiø7','III7','vi7'],['I','III7','vi','IV'],['ii7','V7','iii7','VI7'],['I','♭III','IV','I']],
+};
+const PROG_NOTE = {
+  easy:'2–3 个三和弦 · 最常见的功能进行', normal:'3–4 个和弦 · 流行歌常用进行，加入属七 V7',
+  hard:'七和弦 · ii–V–I 等爵士进行', expert:'借用和弦与副属和弦 · ♭VII、iv、II7 等',
+};
+const KEYN = ['C','D♭','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
+const RN_ORDER = Object.keys(RN);
+const palette = () => {
+  const set = new Set(PROGS[diff].flat());
+  return RN_ORDER.filter(r => set.has(r)).sort((a,b) => RN[a][0] - RN[b][0] || RN_ORDER.indexOf(a) - RN_ORDER.indexOf(b));
+};
+const KEYS_SHARP = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const SHARP_KEYS = new Set([2, 4, 6, 7, 9, 11]); // D E F♯ G A B major use sharps
+const KEYS_FLAT = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
+const noteIn = (key, pc) => (SHARP_KEYS.has(key) ? KEYS_SHARP : KEYS_FLAT)[pc % 12];
+const rnName = (key, r) => { const [d, id] = RN[r]; return noteIn(key, key + d) + TYPES.find(t => t.id === id).sym; };
+const P = {key:0, seq:null, voices:[], tries:[], cur:[], over:false, solvedAt:[]};
+function progNew(){
+  const list = PROGS[diff];
+  P.seq = list[rand(list.length)].slice();
+  P.key = rand(12); P.tries = []; P.cur = []; P.over = false; P.solvedAt = P.seq.map(() => null);
+  P.voices = voiceProg(P.key, P.seq);
+  $('pResult').hidden = true; $('pAct').hidden = false;
+  pMsg('先听主和弦找到调性，再播放和弦进行。');
+  progRender();
+}
+// bass on the root in the low register, upper voices in close position moving as little as possible
+function voiceProg(key, seq){
+  let prev = null;
+  return seq.map(r => {
+    const [deg, id] = RN[r], T = TYPES.find(t => t.id === id), rootPc = (key + deg) % 12;
+    const bass = 40 + ((rootPc - 40) % 12 + 12) % 12;
+    const pcs = T.iv.map(x => (rootPc + x) % 12);
+    let best = null;
+    for(let start = 55; start < 67; start++){
+      if(!pcs.includes(start % 12)) continue;
+      const up = [start];
+      for(let m = start + 1; up.length < pcs.length; m++) if(pcs.includes(m % 12) && !up.some(u => u % 12 === m % 12)) up.push(m);
+      const cost = prev ? up.reduce((sum, x, i) => sum + Math.abs(x - prev[Math.min(i, prev.length - 1)]), 0) : Math.abs(up[0] - 60);
+      if(!best || cost < best.cost) best = {up, cost};
+    }
+    prev = best.up;
+    return [bass, ...best.up];
+  });
+}
+function playVoices(list, gap = 1.15){
+  audio();
+  instReady().then(() => {
+    const t0 = ctx.currentTime + 0.05;
+    list.forEach((notes, i) => notes.forEach((m, j) => pianoNote(m, t0 + i * gap + j * 0.02, j ? 0.5 : 0.6, i === list.length - 1 ? 2.4 : gap + 0.15)));
+  });
+}
+const tonicVoices = () => voiceProg(P.key, ['I']);
+function pMsg(t, err){ const m = $('pMsg'); m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); }
+function progEval(guess){
+  return guess.map((g, i) => g === P.seq[i] ? 'ok' : RN[g][0] === RN[P.seq[i]][0] ? 'near' : 'miss');
+}
+function progRender(flipRow){
+  const n = P.seq ? P.seq.length : 0, g = $('pGrid');
+  $('pKey').innerHTML = P.seq ? `调：<b>${KEYN[P.key]} 大调</b> · ${n} 个和弦` : '';
+  g.innerHTML = '';
+  for(let r = 0; r < MAX_TRIES && P.seq; r++){
+    const row = document.createElement('div'); row.className = 'prow'; row.style.setProperty('--n', n);
+    const t = P.tries[r], live = r === P.tries.length && !P.over;
+    if(t){ row.classList.add('done'); row.title = '点击播放这一行'; row.onclick = () => playVoices(voiceProg(P.key, t.guess)); }
+    for(let i = 0; i < n; i++){
+      const c = document.createElement('div'); c.className = 'pcell';
+      const v = t ? t.guess[i] : live ? P.cur[i] : null;
+      if(v){
+        c.innerHTML = `<span></span><small></small>`; c.firstChild.textContent = v; c.lastChild.textContent = rnName(P.key, v);
+        if(t){ c.classList.add(t.res[i]); if(r === flipRow){ c.classList.add('flip'); c.style.animationDelay = (i * 0.12) + 's'; } }
+        else { c.classList.add('filled'); c.title = '点击去掉'; c.onclick = () => { P.cur.splice(i, 1); progRender(); }; }
+      }
+      row.appendChild(c);
+    }
+    g.appendChild(row);
+  }
+  // palette, coloured by what earlier guesses revealed
+  const best = {};
+  P.tries.forEach(t => t.guess.forEach((v, i) => { const rk = {miss:1, near:2, ok:3}[t.res[i]]; if(!best[v] || rk > best[v]) best[v] = rk; }));
+  const pal = $('pPal'); pal.innerHTML = '';
+  palette().forEach(r => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pbtn';
+    if(best[r]) b.classList.add(['', 'miss', 'near', 'ok'][best[r]]);
+    b.innerHTML = '<b></b><small></small>'; b.firstChild.textContent = r; b.lastChild.textContent = P.seq ? rnName(P.key, r) : '';
+    b.onclick = () => {
+      playVoices(voiceProg(P.key, [r]));
+      if(!P.seq || P.over) return;
+      if(P.cur.length >= P.seq.length){ pMsg(`这条进行只有 ${P.seq.length} 个和弦，先点掉一个再选。`, true); return; }
+      P.cur.push(r); pMsg(P.cur.length === P.seq.length ? '选够了，按“提交”。' : `已选 ${P.cur.length} / ${P.seq.length}`);
+      progRender();
+    };
+    pal.appendChild(b);
+  });
+  $('pClear').disabled = !P.cur.length || P.over;
+  $('pSubmit').disabled = !P.seq || P.over || P.cur.length !== P.seq.length;
+  $('pGive').disabled = !P.seq || P.over;
+  renderHeaderStats();
+}
+function progSubmit(){
+  if(!P.seq || P.over) return;
+  if(P.cur.length !== P.seq.length){ pMsg(`需要选 ${P.seq.length} 个和弦，现在选了 ${P.cur.length} 个。`, true); return; }
+  const guess = P.cur.slice(), res = progEval(guess);
+  P.tries.push({guess, res}); P.cur = [];
+  res.forEach((x, i) => { if(x === 'ok' && P.solvedAt[i] == null) P.solvedAt[i] = P.tries.length; });
+  const won = res.every(x => x === 'ok');
+  progRender(P.tries.length - 1);
+  if(won) progFinish(true);
+  else if(P.tries.length >= MAX_TRIES) progFinish(false);
+  else pMsg(`还剩 ${MAX_TRIES - P.tries.length} 次机会。`);
+}
+function progFinish(won){
+  P.over = true;
+  const ps = progStats;
+  ps.played++;
+  if(won){ ps.won++; ps.streak++; ps.best = Math.max(ps.best, ps.streak); ps.dist[P.tries.length - 1]++; } else { ps.streak = 0; ps.dist[6]++; }
+  P.seq.forEach((r, i) => {
+    const d = ps.rn[r] || (ps.rn[r] = {n:0, won:0, tries:0});
+    d.n++; if(P.solvedAt[i] != null){ d.won++; d.tries += P.solvedAt[i]; }
+  });
+  store.set('progStats', ps);
+  const praise = ['一次就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'];
+  pMsg(won ? praise[P.tries.length - 1] : '这次没猜中，答案是：');
+  $('pAnsRn').textContent = P.seq.join(' – ');
+  $('pAnsNames').textContent = `${KEYN[P.key]} 大调 · ` + P.seq.map(r => rnName(P.key, r)).join(' – ');
+  $('pResult').hidden = false; $('pResult').classList.toggle('win', won); $('pAct').hidden = true;
+  if(won){
+    celebrate(ps.streak >= 3 ? 1.6 : 1);
+    const a = audio(), t = a.currentTime + 0.3, root = 60 + P.key;
+    [0,4,7,12].forEach((iv, i) => pianoNote(root + iv, t + i * 0.07, 0.45, 1.4));
+  }
+  progRender();
+}
+function progKey(e){
+  if(e.key === ' '){ e.preventDefault(); if(P.seq) playVoices(P.voices); }
+  else if(e.key === 'Enter'){ if(e.target.closest && e.target.closest('button')) return; if(P.over) progNew(); else progSubmit(); }
+  else if(e.key === 'Backspace'){ if(P.cur.length && !P.over){ P.cur.pop(); progRender(); } }
+}
+$('pPlay').onclick = () => { if(P.seq){ playVoices(P.voices); if(!P.tries.length && !P.cur.length) pMsg(''); } };
+$('pTonic').onclick = () => { if(P.seq) playVoices(tonicVoices()); };
+$('pReplay').onclick = () => P.seq && playVoices(P.voices);
+$('pNext').onclick = progNew;
+$('pClear').onclick = () => { P.cur = []; progRender(); };
+$('pSubmit').onclick = progSubmit;
+$('pGive').onclick = () => { if(P.seq && !P.over){ progFinish(false); } };
+
+// ---------- personal stats (this browser only) ----------
+const typeStats = store.get('typeStats', {});
+const progStats = Object.assign({played:0, won:0, streak:0, best:0, dist:[0,0,0,0,0,0,0], rn:{}}, store.get('progStats', {}));
+function recordType(id, won, n){
+  const d = typeStats[id] || (typeStats[id] = {n:0, won:0, tries:0, dist:[0,0,0,0,0,0,0]});
+  d.n++;
+  if(won){ d.won++; d.tries += n; d.dist[n - 1]++; } else d.dist[6]++;
+  store.set('typeStats', typeStats);
+}
+function renderHeaderStats(){
+  const S = MODE === 'prog' ? progStats : stats;
+  $('sPlayed').textContent = S.played;
+  $('sWin').textContent = S.played ? Math.round(S.won / S.played * 100) + '%' : '0%';
+  $('sStreak').textContent = S.streak;
+  $('sBest').textContent = S.best;
+  $('streakStat').classList.toggle('hot', S.streak >= 3);
+  const tt = MODE === 'prog' ? null : titleFor(stats.best); $('sTitle').hidden = !tt; $('sTitle').textContent = tt || '';
+}
+let statsTab = 'single';
+function distHtml(dist){
+  const max = Math.max(1, ...dist);
+  return '<div class="dist">' + dist.map((v, i) => `<div class="r"><span>${i < 6 ? '第 ' + (i + 1) + ' 次' : '没猜中'}</span><span><span class="bar${i < 6 ? ' win' : ''}" style="display:inline-block;width:${Math.max(6, v / max * 100)}%">${v}</span></span></div>`).join('') + '</div>';
+}
+function tableHtml(rows, head){
+  const played = rows.filter(r => r.n >= 3);
+  const weak = played.length >= 2 ? played.reduce((a, b) => (b.won / b.n < a.won / a.n || (b.won / b.n === a.won / a.n && (b.won ? b.tries / b.won : 9) > (a.won ? a.tries / a.won : 9))) ? b : a) : null;
+  return `<table class="stbl"><thead><tr><th>${head}</th><th>局数</th><th>猜对率</th><th>平均几次猜对</th></tr></thead><tbody>` +
+    rows.map(r => { const pct = Math.round(r.won / r.n * 100);
+      return `<tr${r === weak && pct < 100 ? ' class="weak"' : ''}><td>${r.label}</td><td>${r.n}</td><td>${pct}%<span class="meter"><i style="width:${pct}%"></i></span></td><td>${r.won ? (r.tries / r.won).toFixed(1) : '–'}</td></tr>`; }).join('') +
+    '</tbody></table>';
+}
+function renderStats(){
+  document.querySelectorAll('#statsTabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === statsTab));
+  const body = $('statsBody');
+  if(statsTab === 'single'){
+    const rows = TYPES.filter(t => typeStats[t.id] && typeStats[t.id].n).map(t => ({label: t.zh + (t.sym ? ' <span class="diffnote">' + (t.chip || t.sym).trim() + '</span>' : ''), ...typeStats[t.id]}))
+      .sort((a, b) => b.n - a.n);
+    if(!rows.length){ body.innerHTML = '<div class="sempty">还没有记录。玩几局单个和弦，这里会按和弦类型统计猜对率和平均用几次猜对。</div>'; return; }
+    const tot = rows.reduce((a, r) => ({n: a.n + r.n, won: a.won + r.won, tries: a.tries + r.tries}), {n:0, won:0, tries:0});
+    const dist = [0,0,0,0,0,0,0]; rows.forEach(r => r.dist.forEach((v, i) => dist[i] += v));
+    body.innerHTML = `<div class="ssum"><div><b>${tot.n}</b><span>局数</span></div><div><b>${Math.round(tot.won / tot.n * 100)}%</b><span>猜对率</span></div><div><b>${tot.won ? (tot.tries / tot.won).toFixed(1) : '–'}</b><span>平均几次猜对</span></div><div><b>${stats.best}</b><span>最长连胜</span></div></div>`
+      + distHtml(dist) + tableHtml(rows, '和弦类型');
+  } else {
+    const ps = progStats;
+    if(!ps.played){ body.innerHTML = '<div class="sempty">还没有记录。玩几局和弦进行，这里会统计每个级数和弦的猜对率和平均用几次猜对。</div>'; return; }
+    const won = ps.dist.slice(0, 6).reduce((a, v, i) => a + v * (i + 1), 0);
+    const rows = RN_ORDER.filter(r => ps.rn[r] && ps.rn[r].n).map(r => ({label: r, ...ps.rn[r]})).sort((a, b) => b.n - a.n);
+    body.innerHTML = `<div class="ssum"><div><b>${ps.played}</b><span>局数</span></div><div><b>${Math.round(ps.won / ps.played * 100)}%</b><span>猜对率</span></div><div><b>${ps.won ? (won / ps.won).toFixed(1) : '–'}</b><span>平均几次猜对</span></div><div><b>${ps.best}</b><span>最长连胜</span></div></div>`
+      + distHtml(ps.dist) + tableHtml(rows, '级数和弦');
+  }
+}
+$('statsBtn').onclick = () => { statsTab = MODE; renderStats(); $('statsDlg').showModal(); };
+$('statsClose').onclick = () => $('statsDlg').close();
+$('statsDlg').addEventListener('click', e => { if(e.target === $('statsDlg')) $('statsDlg').close(); });
+document.querySelectorAll('#statsTabs button').forEach(b => b.onclick = () => { statsTab = b.dataset.t; renderStats(); });
+$('statsReset').onclick = () => {
+  if(!confirm(statsTab === 'single' ? '清空单个和弦的统计？' : '清空和弦进行的统计？')) return;
+  if(statsTab === 'single'){ Object.keys(typeStats).forEach(k => delete typeStats[k]); store.set('typeStats', typeStats); }
+  else { Object.assign(progStats, {played:0, won:0, streak:0, best:0, dist:[0,0,0,0,0,0,0], rn:{}}); store.set('progStats', progStats); }
+  renderStats(); renderHeaderStats();
+};
 
 // ---------- versus ----------
 // Everything travels as room presence: each player publishes absolute state (round, colour rows, done),
@@ -1427,6 +1761,7 @@ try{ loadSamples(); }catch(e){}
   });
 }
 beginRound(null);
+applyMode();
 })();
 </script>
 
