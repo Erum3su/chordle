@@ -418,7 +418,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
     </div>
     <div class="legend">
       <span><i style="background:var(--ok)"></i>完全正确</span>
-      <span><i style="background:var(--near)"></i>根音级数对，和弦性质不对</span>
+      <span id="pNearLegend"><i style="background:var(--near)"></i>根音级数对，和弦性质不对</span>
       <span><i style="background:var(--miss)"></i>不对</span>
     </div>
   </section>
@@ -1473,6 +1473,8 @@ function progRender(flipRow){
   const best = {};
   P.tries.forEach(t => t.guess.forEach((v, i) => { const rk = {miss:1, near:2, ok:3}[t.res[i]]; if(!best[v] || rk > best[v]) best[v] = rk; }));
   const pal = $('pPal'); pal.innerHTML = '';
+  // yellow only happens when some degree has more than one chord to choose from
+  const degs = palette().map(r => RN[r][0]); $('pNearLegend').hidden = new Set(degs).size === degs.length;
   palette().forEach(r => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'pbtn';
     if(best[r] > 1) b.classList.add(['', '', 'near', 'ok'][best[r]]);   // wrong guesses stay normal: a chord can still appear elsewhere
