@@ -67,7 +67,6 @@ button.inst::after{display:none}
 .pbtn small{font-size:.7rem;color:var(--muted)}
 .pbtn.ok{background:var(--ok);border-color:var(--ok);color:#fff} .pbtn.ok small{color:#e8f5ec}
 .pbtn.near{border-color:var(--near);box-shadow:inset 0 -3px 0 var(--near)}
-.pbtn.miss{opacity:.45}
 .pbtn:disabled{cursor:not-allowed;opacity:.4}
 /* stats dialog */
 .sdlg{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--fg);padding:16px 18px;width:min(560px,calc(100vw - 32px));max-height:min(80vh,720px)}
@@ -1460,7 +1459,7 @@ function progRender(flipRow){
   const pal = $('pPal'); pal.innerHTML = '';
   palette().forEach(r => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'pbtn';
-    if(best[r]) b.classList.add(['', 'miss', 'near', 'ok'][best[r]]);
+    if(best[r] > 1) b.classList.add(['', '', 'near', 'ok'][best[r]]);   // wrong guesses stay normal: a chord can still appear elsewhere
     b.innerHTML = '<b></b><small></small>'; b.firstChild.textContent = r; b.lastChild.textContent = P.seq ? rnName(P.key, r) : '';
     const ki = pal.children.length; if(ki < PAL_CHARS.length){ const kc = document.createElement('i'); kc.className = 'kc'; kc.textContent = PAL_CHARS[ki]; b.appendChild(kc); }
     b.onclick = () => {
