@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Chordle</title>
 <meta name="description" content="听一个钢琴和弦，在琴键上找出它。可以单人玩，也可以开房间和朋友对战。">
+<script src="/vendor/tonal.min.js" defer></script>
 <script src="/room-client.js"></script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -104,6 +105,11 @@ h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;c
 @keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
 
 .msg{min-height:1.6em;font-size:.95rem;text-align:center}
+.selname{display:flex;align-items:baseline;gap:8px;justify-content:center;margin-top:2px;min-height:1.9rem}
+.selname .lab{font-size:.75rem;color:var(--muted);letter-spacing:.08em}
+.selname b{font-family:var(--mono);font-size:1.3rem;color:var(--sel)}
+.selname small{font-size:.8rem;color:var(--muted)}
+.selname.unknown b{color:var(--muted);font-family:var(--body);font-size:1rem;font-weight:500}
 .msg.err{color:var(--accent)}
 .result{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center}
 .result .name{font-family:var(--display);font-weight:900;font-size:1.5rem}
@@ -305,6 +311,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <div class="grid" id="grid"></div>
       <aside class="opps" id="opps" hidden aria-label="对手进度"></aside>
     </div>
+    <div class="selname" id="selName" aria-live="polite" hidden></div>
     <div class="msg" id="msg" role="status"></div>
     <div class="result" id="result" hidden>
       <div class="name" id="rName"></div>
@@ -862,7 +869,73 @@ function renderKeys(){
     lab.textContent = (sel.includes(m) || m%12===0 || (showAll && !black)) ? (m%12===0 || sel.includes(m) ? noteName(m) : NAMES[m%12]) : '';
   });
 }
+// ---------- naming the player's own selection ----------
+// Every known chord as a pitch-class set relative to its root. Order = preference when one set has
+// several readings (C6 vs Am7/C): a reading whose root is the bass wins, then the earlier entry.
+const CHORD_DICT = (() => {
+  const d = [];
+  const add = (sym, zh, ivs) => d.push({sym, zh, pcs: [...new Set(ivs.map(x => x % 12))].sort((a,b) => a-b).join(',')});
+  TYPES.forEach(t => {
+    add(t.sym, t.zh, t.iv);
+    // 7th-and-up chords are often played without the fifth
+    if(t.iv.length >= 4 && t.iv.includes(7) && !t.ust) add(t.sym, t.zh + '（省略五音）', t.iv.filter(x => x !== 7));
+  });
+  const dom7 = TYPES.find(t => t.id === 'dom7');
+  ALTS.forEach(a => {
+    add('7(' + a.sym + ')', '属七 ' + a.sym, dom7.iv.concat(a.iv));
+    add('7(' + a.sym + ')', '属七 ' + a.sym + '（省略五音）', dom7.iv.filter(x => x !== 7).concat(a.iv));
+  });
+  add('6', '大六', [0,4,7,9]); add('m6', '小六', [0,3,7,9]);
+  add('add9', '加九', [0,2,4,7]); add('m(add9)', '小加九', [0,2,3,7]);
+  add('5', '强力和弦', [0,7]);
+  return d;
+})();
+const INTERVAL_ZH = ['纯八度','小二度','大二度','小三度','大三度','纯四度','三全音','纯五度','小六度','大六度','小七度','大七度'];
+function nameSelection(ms){
+  if(!ms.length) return null;
+  const sorted = ms.slice().sort((a,b) => a-b), bass = sorted[0] % 12;
+  const pcs = [...new Set(sorted.map(m => m % 12))];
+  if(pcs.length === 1) return {sym: NAMES[bass], zh: ms.length > 1 ? '八度' : '单音'};
+  let best = null;
+  pcs.forEach(root => {
+    const key = pcs.map(pc => (pc - root + 12) % 12).sort((a,b) => a-b).join(',');
+    const i = CHORD_DICT.findIndex(c => c.pcs === key);
+    if(i < 0) return;
+    const score = (root === bass ? 0 : 1000) + i;
+    if(!best || score < best.score) best = {score, root, c: CHORD_DICT[i]};
+  });
+  if(best){
+    const slash = best.root !== bass ? '/' + NAMES[bass] : '';
+    return {sym: NAMES[best.root] + best.c.sym + slash, zh: best.c.zh + (slash ? ' · 转位' : '')};
+  }
+  if(pcs.length === 2) return {sym: NAMES[bass] + '–' + NAMES[sorted[sorted.length-1] % 12], zh: INTERVAL_ZH[(sorted[sorted.length-1] - sorted[0]) % 12]};
+  // anything outside the game's own chord list: ask Tonal's chord detector (100+ chord types, bass note first)
+  const T = window.Tonal;
+  if(T && T.Chord && T.Chord.detect){
+    try{
+      const names = [...new Set(sorted.map(m => T.Note.pitchClass(T.Note.fromMidiSharps(m))))];
+      const found = T.Chord.detect(names);
+      if(found.length){
+        const sym = found[0].replace(/^([A-G][#b]?)M(?=$|\/)/, '$1').replace(/#/g, '♯').replace(/(?<=[^A-G])b/g, '♭');
+        return {sym, zh: ''};
+      }
+    }catch(e){}
+  }
+  return null;
+}
+function renderSelName(){
+  const el = $('selName');
+  if(!el) return;
+  if(!sel.length || over){ el.hidden = true; return; }
+  const n = nameSelection(sel);
+  el.hidden = false;
+  el.classList.toggle('unknown', !n);
+  el.innerHTML = '<span class="lab">你选的是</span>';
+  const b = document.createElement('b'); b.textContent = n ? n.sym : '未识别的和弦'; el.appendChild(b);
+  if(n && n.zh){ const z = document.createElement('small'); z.textContent = n.zh; el.appendChild(z); }
+}
 function renderGrid(flipRow){
+  renderSelName();
   if(!chord){ $('grid').innerHTML = ''; return; }
   const n = chord.notes.length, g = $('grid');
   g.innerHTML = '';
