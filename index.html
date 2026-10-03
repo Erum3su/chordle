@@ -1368,7 +1368,8 @@ const PROGS = {
   easy:   [['I','IV'],['I','V'],['V','I'],['IV','I'],['I','IV','V'],['I','V','vi'],['vi','IV','I'],['I','vi','IV'],['IV','V','I'],['ii','V','I'],['I','IV','I'],['vi','V','IV']],
   normal: [['I','V','vi','IV'],['I','vi','IV','V'],['vi','IV','I','V'],['I','IV','V','I'],['ii','V7','I'],['I','vi','ii','V7'],['IV','I','V','vi'],
            ['I','iii','IV','V'],['I','IV','vi','V'],['vi','ii','V','I'],['IV','V','iii','vi'],['I','V','IV','V7'],
-           // a few with the most common secondary dominants: II7 = V/V, VI7 = V/ii
+           // secondary dominants pop songs use all the time: III7 = V/vi, II7 = V/V, I7 = V/IV, VI7 = V/ii
+           ['IV','V','III7','vi'],['IV','III7','vi','V'],['I','III7','IV','V'],['I','I7','IV','V'],
            ['I','II7','IV','I'],['I','II7','V7','I'],['I','VI7','ii','V7']],
   hard:   [['ii7','V7','Imaj7'],['Imaj7','vi7','ii7','V7'],['iii7','vi7','ii7','V7'],['Imaj7','IVmaj7','iii7','vi7'],['ii7','V7','Imaj7','vi7'],
            ['vi7','ii7','V7','Imaj7'],['IVmaj7','V7','iii7','vi7'],['Imaj7','iii7','IVmaj7','V7'],['IVmaj7','iii7','ii7','Imaj7'],['ii7','V7','iii7','vi7'],
@@ -1383,7 +1384,7 @@ const PROGS = {
            ['Imaj7','VI7','ii7','V7','iii7','VI7'],['IVmaj7','iv','iii7','VI7','ii7','V7'],['Imaj7','I7','IVmaj7','iv','iii7','VI7'],['I','III7','vi','♭VII','IV','I']],
 };
 const PROG_NOTE = {
-  easy:'2–3 个三和弦 · 最常见的功能进行', normal:'3–4 个和弦 · 流行歌常用进行，加入属七 V7，偶尔出现副属和弦 II7、VI7',
+  easy:'2–3 个三和弦 · 最常见的功能进行', normal:'3–4 个和弦 · 流行歌常用进行，加入属七 V7，加入流行歌常用的副属和弦 III7、II7、I7',
   hard:'3–5 个和弦 · 七和弦与三和弦混合 · ii–V–I 等爵士进行，加入副属和弦 II7、III7、VI7 等', expert:'4–6 个和弦 · 借用和弦与副属和弦 · ♭VII、iv、II7 等',
 };
 const KEYN = ['C','D♭','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
