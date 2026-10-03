@@ -189,6 +189,23 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .kb .w.sel{background:color-mix(in srgb,var(--sel) 38%,var(--ivory));color:#0d2552}
 .kb .b.sel{background:var(--sel);color:#fff}
 .kb .k.down{filter:brightness(.88)}
+.kb .k .kc{font-size:calc(var(--kw) * .22);font-weight:600;opacity:.55;pointer-events:none;line-height:1;margin-bottom:6px;min-height:1em}
+.kb .w .kc{color:#5d5a52} .kb .b .kc{color:#e6e8ec}
+.kb .w.inwin{box-shadow:inset 0 4px 0 color-mix(in srgb,var(--sel) 45%,transparent)}
+.pbtn{position:relative} .pbtn .kc{position:absolute;top:2px;right:4px;font-family:var(--mono);font-size:.6rem;font-style:normal;color:var(--muted);opacity:.8}
+.pbtn.ok .kc{color:#e8f5ec}
+@media (hover:none),(pointer:coarse){.kb .k .kc,.pbtn .kc{display:none}.kb .w.inwin{box-shadow:none}}
+.helpdlg kbd{display:inline-block;min-width:1.6em;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--bg);font-family:var(--mono);font-size:.8rem;text-align:center;line-height:1.4}
+.helpdlg .hsec{display:flex;flex-direction:column;gap:6px;overflow:auto}
+.helpdlg h4{margin:6px 0 0;font-size:.85rem;color:var(--muted);font-weight:600}
+.helpdlg .hrow{display:grid;grid-template-columns:minmax(150px,auto) 1fr;gap:10px;align-items:center;font-size:.9rem}
+.helpdlg .hrow>span:first-child{display:flex;flex-wrap:wrap;gap:3px;align-items:center}
+.kmap{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;font-family:var(--mono);font-size:.72rem;text-align:center;margin:2px 0 4px}
+.kmap div{border:1px solid var(--line);border-radius:4px;padding:3px 0;line-height:1.25}
+.kmap .bk{background:var(--ebony);color:#e6e8ec;border-color:var(--ebony)}
+.kmap .nil{border:0}
+.kmap small{display:block;opacity:.65;font-size:.62rem}
+.keys a{color:inherit;text-decoration:underline;cursor:pointer}
 .kb .k.reveal{outline:3px solid var(--ok);outline-offset:-3px}
 
 .legend{display:flex;gap:6px 16px;flex-wrap:wrap;justify-content:center;font-size:.8rem;color:var(--muted)}
@@ -429,13 +446,40 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <span><i style="background:var(--miss)"></i>不在和弦里</span>
     </div>
   </section>
+  <dialog class="sdlg helpdlg" id="helpDlg" aria-label="键盘操作指南">
+    <div class="sdlg-head"><b>键盘操作指南</b><button type="button" class="btn" id="helpClose">关闭</button></div>
+    <div class="hsec">
+      <h4>单个和弦：琴键（和 GarageBand 的“音乐键入”一样）</h4>
+      <div class="kmap">
+        <div class="nil"></div><div class="bk">W<small>C♯</small></div><div class="bk">E<small>D♯</small></div><div class="nil"></div><div class="bk">T<small>F♯</small></div><div class="bk">Y<small>G♯</small></div><div class="bk">U<small>A♯</small></div><div class="nil"></div><div class="bk">O<small>C♯</small></div><div class="bk">P<small>D♯</small></div><div class="nil"></div><div class="nil"></div>
+        <div>A<small>C</small></div><div>S<small>D</small></div><div>D<small>E</small></div><div>F<small>F</small></div><div>G<small>G</small></div><div>H<small>A</small></div><div>J<small>B</small></div><div>K<small>C</small></div><div>L<small>D</small></div><div>;<small>E</small></div><div>'<small>F</small></div><div class="nil"></div>
+      </div>
+      <div class="hrow"><span><kbd>Z</kbd><kbd>X</kbd></span><span>键位整体降 / 升一个八度（琴键上的字母会跟着移动）</span></div>
+      <h4>和弦进行</h4>
+      <div class="hrow"><span><kbd>A</kbd>…<kbd>'</kbd> <kbd>Q</kbd>…<kbd>]</kbd></span><span>选级数和弦，每个按钮右上角标着对应的键</span></div>
+      <h4>两种模式通用</h4>
+      <div class="hrow"><span><kbd>空格</kbd></span><span>播放题目</span></div>
+      <div class="hrow"><span><kbd>⇧</kbd><kbd>空格</kbd></span><span>单个和弦：播放我选的音；和弦进行：听主和弦</span></div>
+      <div class="hrow"><span><kbd>↩</kbd></span><span>提交；结束后进入下一题</span></div>
+      <div class="hrow"><span><kbd>⌫</kbd></span><span>删掉最后一个</span></div>
+      <div class="hrow"><span><kbd>⇧</kbd><kbd>⌫</kbd></span><span>全部清除</span></div>
+      <div class="hrow"><span><kbd>1</kbd>…<kbd>6</kbd></span><span>重听第几次的猜测</span></div>
+      <div class="hrow"><span><kbd>esc</kbd><kbd>esc</kbd></span><span>连按两次放弃这一题</span></div>
+      <h4>设置</h4>
+      <div class="hrow"><span><kbd>⇧</kbd><kbd>1</kbd>…<kbd>4</kbd></span><span>难度：简单 / 普通 / 困难 / 大师</span></div>
+      <div class="hrow"><span><kbd>⇧</kbd><kbd>M</kbd></span><span>切换单个和弦 / 和弦进行</span></div>
+      <div class="hrow"><span><kbd>⇧</kbd><kbd>I</kbd></span><span>换下一个音色</span></div>
+      <div class="hrow"><span><kbd>⇧</kbd><kbd>S</kbd></span><span>打开个人统计</span></div>
+      <div class="hrow"><span><kbd>?</kbd></span><span>打开 / 关闭这份指南，<kbd>esc</kbd> 关闭弹窗</span></div>
+    </div>
+  </dialog>
   <dialog class="sdlg" id="statsDlg" aria-label="个人统计">
     <div class="sdlg-head"><b>个人统计</b><button type="button" class="btn" id="statsClose">关闭</button></div>
     <div class="seg" id="statsTabs"><button type="button" data-t="single" aria-pressed="true">单个和弦</button><button type="button" data-t="prog">和弦进行</button></div>
     <div id="statsBody"></div>
     <div class="sdlg-foot"><span class="diffnote">统计只保存在这台设备的浏览器里。</span><button type="button" class="linkbtn" id="statsReset">清空统计</button></div>
   </dialog>
-  <footer><span class="keys">空格 播放 · P 播放我的选择 · 回车 提交 · 退格 清除 · </span>点已提交的行可重听<br>乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）</footer>
+  <footer><span class="keys">纯键盘也能玩：按 <a id="helpLink">?</a> 查看操作指南 · </span>点已提交的行可重听<br>乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）</footer>
 </div>
 
 <script>
@@ -981,11 +1025,12 @@ function buildKeyboard(){
     k.setAttribute('aria-label', noteName(m));
     if(black) k.style.left = (wi*kw - kw*0.31) + 'px';
     else { k.style.left = (wi*kw) + 'px'; wi++; }
-    k.innerHTML = '<span class="dot"></span><span class="lab"></span>';
+    k.innerHTML = '<span class="kc"></span><span class="dot"></span><span class="lab"></span>';
     kb.appendChild(k);
   }
 }
 function renderKeys(){
+  kbClamp();
   const showAll = diff === 'easy';
   document.querySelectorAll('#kb .k').forEach(k => {
     const m = +k.dataset.m;
@@ -996,6 +1041,9 @@ function renderKeys(){
     const lab = k.querySelector('.lab');
     const black = isBlack(m%12);
     lab.textContent = (sel.includes(m) || m%12===0 || (showAll && !black)) ? (m%12===0 || sel.includes(m) ? noteName(m) : NAMES[m%12]) : '';
+    const off = m - kbBase, kc = k.querySelector('.kc');
+    if(kc) kc.textContent = off >= 0 && off < PIANO_CHARS.length ? PIANO_CHARS[off] : '';
+    k.classList.toggle('inwin', off >= 0 && off < PIANO_CHARS.length && !black);
   });
 }
 // ---------- naming the player's own selection ----------
@@ -1197,7 +1245,10 @@ $('giveUp').onclick = () => { if(chord && !over){ finish(false); renderGrid(); v
 $('kb').addEventListener('pointerdown', e => {
   const k = e.target.closest('.k'); if(!k) return;
   e.preventDefault();
-  const m = +k.dataset.m;
+  pressKey(+k.dataset.m);
+});
+function pressKey(m){
+  const k = document.querySelector(`#kb .k[data-m="${m}"]`); if(!k) return;
   pianoNote(m, audio().currentTime + 0.01, 0.6, 1.6);
   k.classList.add('down'); setTimeout(() => k.classList.remove('down'), 140);
   if(!chord || over) return;
@@ -1207,15 +1258,88 @@ $('kb').addEventListener('pointerdown', e => {
   else { setMsg(`最多选 ${chord.notes.length} 个音，先点掉一个再选。`, true); return; }
   setMsg(sel.length === chord.notes.length ? '选够了，按“提交”。' : `已选 ${sel.length} / ${chord.notes.length}`);
   renderGrid(); renderAll();
-});
+}
+// ---------- keyboard (Mac layout, by physical key so the Chinese IME doesn't get in the way) ----------
+// piano: GarageBand "Musical Typing" — home row = white keys, top row = black keys, Z/X shift the octave
+const PIANO_CODES = ['KeyA','KeyW','KeyS','KeyE','KeyD','KeyF','KeyT','KeyG','KeyY','KeyH','KeyU','KeyJ','KeyK','KeyO','KeyL','KeyP','Semicolon','Quote'];
+const PIANO_CHARS = ['A','W','S','E','D','F','T','G','Y','H','U','J','K','O','L','P',';',"'"];
+const PAL_CODES = ['KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','Quote','KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','BracketLeft','BracketRight'];
+const PAL_CHARS = ['A','S','D','F','G','H','J','K','L',';',"'",'Q','W','E','R','T','Y','U','I','O','P','[',']'];
+let kbBase = 60, escAt = 0;
+function kbClamp(){
+  const D = DIFF[diff], lo = Math.ceil(D.lo / 12) * 12, hi = Math.max(lo, Math.floor((D.hi - 11) / 12) * 12);
+  kbBase = Math.min(hi, Math.max(lo, kbBase));
+}
+function shiftOctave(d){
+  const before = kbBase; kbBase += d * 12; kbClamp(); renderKeys();
+  setMsg(kbBase === before ? (d < 0 ? '已经是最低的八度了。' : '已经是最高的八度了。') : `键位移到 ${noteName(kbBase)} – ${noteName(Math.min(DIFF[diff].hi, kbBase + 17))}`);
+}
+function openHelp(){ const d = $('helpDlg'); if(d.open) d.close(); else d.showModal(); }
+$('helpLink').onclick = openHelp;
+$('helpClose').onclick = () => $('helpDlg').close();
+$('helpDlg').addEventListener('click', e => { if(e.target === $('helpDlg')) $('helpDlg').close(); });
 document.addEventListener('keydown', e => {
   if(e.target.closest && e.target.closest('input,textarea,select')) return;
+  if($('helpDlg').open){ if(e.key === '?'){ e.preventDefault(); $('helpDlg').close(); } return; }
   if($('statsDlg').open) return;
-  if(MODE === 'prog'){ progKey(e); return; }
-  if(e.key === ' '){ e.preventDefault(); doPlay(); }
-  else if(e.key === 'p' || e.key === 'P'){ if(sel.length) playChord(sel); }
-  else if(e.key === 'Enter'){ if(e.target.closest && e.target.closest('button')) return; if(over) newRound(); else submit(); }
-  else if(e.key === 'Backspace'){ if(sel.length){ sel.pop(); renderGrid(); renderAll(); } }
+  if(e.metaKey || e.ctrlKey || e.altKey) return;   // leave ⌘ shortcuts to the browser
+  const prog = MODE === 'prog', code = e.code;
+  if(e.key === '?' || (code === 'Slash' && e.shiftKey)){ e.preventDefault(); openHelp(); return; }
+  if(e.repeat && code !== 'Backspace') return;
+  if(e.shiftKey){
+    const dm = {Digit1:'easy', Digit2:'normal', Digit3:'hard', Digit4:'expert'}[code];
+    if(dm){ e.preventDefault(); $('d-' + dm).click(); return; }
+    if(code === 'KeyM'){ e.preventDefault(); setMode(prog ? 'single' : 'prog'); return; }
+    if(code === 'KeyI'){
+      e.preventDefault();
+      const i = INSTRUMENTS.indexOf(inst); setInst(INSTRUMENTS[(i + 1) % INSTRUMENTS.length].id);
+      (prog ? pMsg : setMsg)('音色：' + inst.name); return;
+    }
+    if(code === 'KeyS'){ e.preventDefault(); $('statsBtn').click(); return; }
+    if(code === 'Space'){ e.preventDefault(); if(prog) $('pTonic').click(); else if(sel.length) playChord(sel); return; }
+    if(code === 'Backspace'){ e.preventDefault(); if(prog){ if(!P.over){ P.cur = []; progRender(); } } else if(sel.length && !over){ $('clearBtn').click(); } return; }
+    return;
+  }
+  if(code === 'Escape'){
+    const done = prog ? (!P.seq || P.over) : (!chord || over);
+    if(done) return;
+    if(Date.now() - escAt < 1500){ escAt = 0; $(prog ? 'pGive' : 'giveUp').click(); }
+    else { escAt = Date.now(); (prog ? pMsg : setMsg)('再按一次 esc 放弃这一题。', true); }
+    return;
+  }
+  const row = /^Digit([1-6])$/.exec(code);
+  if(row){
+    e.preventDefault();
+    const t = (prog ? P.tries : tries)[row[1] - 1];
+    if(t) prog ? playVoices(voiceProg(P.key, t.guess)) : playChord(t.guess);
+    return;
+  }
+  if(code === 'Space'){ e.preventDefault(); prog ? $('pPlay').click() : doPlay(); return; }
+  if(code === 'Enter'){
+    if(e.target.closest && e.target.closest('button,[role=button]')) return;
+    e.preventDefault();
+    if(prog){ if(P.over) progNew(); else progSubmit(); } else { if(over) newRound(); else submit(); }
+    return;
+  }
+  if(code === 'Backspace'){
+    e.preventDefault();
+    if(prog){ if(P.cur.length && !P.over){ P.cur.pop(); progRender(); } }
+    else if(sel.length && !over){ sel.pop(); setMsg(sel.length ? `已选 ${sel.length} / ${chord.notes.length}` : ''); renderGrid(); renderAll(); }
+    return;
+  }
+  if(prog){
+    const i = PAL_CODES.indexOf(code);
+    if(i >= 0){ e.preventDefault(); const b = $('pPal').children[i]; if(b) b.click(); }
+    return;
+  }
+  if(code === 'KeyZ' || code === 'KeyX'){ e.preventDefault(); shiftOctave(code === 'KeyZ' ? -1 : 1); return; }
+  const off = PIANO_CODES.indexOf(code);
+  if(off >= 0){
+    e.preventDefault();
+    const m = kbBase + off;
+    if(m > DIFF[diff].hi || m < DIFF[diff].lo){ setMsg('这个键超出了琴键范围，按 Z 降一个八度。', true); return; }
+    pressKey(m);
+  }
 });
 let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { buildKeyboard(); renderKeys(); }, 150); });
 
@@ -1338,6 +1462,7 @@ function progRender(flipRow){
     const b = document.createElement('button'); b.type = 'button'; b.className = 'pbtn';
     if(best[r]) b.classList.add(['', 'miss', 'near', 'ok'][best[r]]);
     b.innerHTML = '<b></b><small></small>'; b.firstChild.textContent = r; b.lastChild.textContent = P.seq ? rnName(P.key, r) : '';
+    const ki = pal.children.length; if(ki < PAL_CHARS.length){ const kc = document.createElement('i'); kc.className = 'kc'; kc.textContent = PAL_CHARS[ki]; b.appendChild(kc); }
     b.onclick = () => {
       playVoices(voiceProg(P.key, [r]));
       if(!P.seq || P.over) return;
@@ -1385,11 +1510,6 @@ function progFinish(won){
     [0,4,7,12].forEach((iv, i) => pianoNote(root + iv, t + i * 0.07, 0.45, 1.4));
   }
   progRender();
-}
-function progKey(e){
-  if(e.key === ' '){ e.preventDefault(); if(P.seq) playVoices(P.voices); }
-  else if(e.key === 'Enter'){ if(e.target.closest && e.target.closest('button')) return; if(P.over) progNew(); else progSubmit(); }
-  else if(e.key === 'Backspace'){ if(P.cur.length && !P.over){ P.cur.pop(); progRender(); } }
 }
 $('pPlay').onclick = () => { if(P.seq){ playVoices(P.voices); if(!P.tries.length && !P.cur.length) pMsg(''); } };
 $('pTonic').onclick = () => { if(P.seq) playVoices(tonicVoices()); };
