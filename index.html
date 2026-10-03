@@ -1018,8 +1018,7 @@ function submit(){
   const guess = sel.slice().sort((a,b)=>a-b);
   const res = evaluate(guess);
   tries.push({guess,res});
-  keyState = {};   // only the latest guess is marked on the keys
-  guess.forEach((m,i) => { keyState[m] = res[i]; });
+  guess.forEach((m,i) => { if(!keyState[m] || RANK[res[i]] > RANK[keyState[m]]) keyState[m] = res[i]; });
   sel = [];
   renderGrid(tries.length-1);
   const won = res.every(r => r==='ok');
