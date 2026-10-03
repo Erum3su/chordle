@@ -151,10 +151,43 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
 .vs input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .vs .btn{padding:6px 14px}
 .vs .code{font-family:var(--mono);font-weight:700;font-size:1.05rem;letter-spacing:.08em;color:var(--accent)}
-.vs .scoreline{display:flex;flex-wrap:wrap;gap:4px 14px;font-variant-numeric:tabular-nums}
-.vs .scoreline .pt{font-family:var(--mono);font-weight:700;margin-left:5px}
-.vs .scoreline .me{font-weight:700}
-.vs .scoreline .gone{opacity:.45}
+.sboard{display:flex;flex-direction:column;gap:8px}
+/* leaderboard: one bar per player, length = share of the leader's score */
+.lb{display:flex;flex-direction:column;gap:6px;position:relative}
+.lbr{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr) auto auto auto;align-items:center;gap:10px;
+  padding:7px 12px 7px 8px;border-radius:10px;overflow:hidden;background:var(--bg);border:1px solid var(--line);
+  transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.lbr .fill{position:absolute;inset:0 auto 0 0;width:var(--w,0%);transition:width .9s cubic-bezier(.2,.8,.2,1);
+  background:linear-gradient(90deg,color-mix(in srgb,var(--sel) 22%,transparent),color-mix(in srgb,var(--sel) 6%,transparent));z-index:0}
+.lbr.me .fill{background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 26%,transparent),color-mix(in srgb,var(--accent) 6%,transparent))}
+.lbr>*:not(.fill){position:relative;z-index:1}
+.lbr .rk{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:.8rem;
+  background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.lbr.r1 .rk{font-size:1rem;background:linear-gradient(135deg,#ffe58a,#d6a11d);border-color:#c48f10;color:#3a2800;box-shadow:0 0 10px color-mix(in srgb,#f5c542 60%,transparent)}
+.lbr.r2 .rk{background:linear-gradient(135deg,#f1f3f6,#aab1bd);border-color:#9aa1ad;color:#2b2f36}
+.lbr.r3 .rk{background:linear-gradient(135deg,#f3c7a0,#b8733d);border-color:#a5622f;color:#2e1606}
+.lbr.r1{border-color:color-mix(in srgb,#d6a11d 70%,var(--line));box-shadow:0 0 0 1px color-mix(in srgb,#d6a11d 35%,transparent),0 4px 18px -6px color-mix(in srgb,#d6a11d 60%,transparent)}
+.lbr.r1::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.35) 50%,transparent 65%);transform:translateX(-100%);animation:shine 3.2s ease-in-out infinite}
+@keyframes shine{0%,55%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.lbr .nm{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbr.me .nm{font-weight:700}
+.lbr .nm small{color:var(--muted);font-weight:400;margin-left:6px;font-size:.75rem}
+.lbr .lastc{font-size:.75rem;color:var(--muted);white-space:nowrap}
+.lbr .lastc b{font-family:var(--mono);color:var(--ok)}
+.lbr .lastc i{font-style:normal}
+@media (max-width:480px){.lbr .lastc i{display:none}.lbr{gap:8px}}
+.lbr .wins{font-size:.75rem;color:var(--muted);white-space:nowrap}
+.lbr .wins b{font-family:var(--mono);color:var(--fg)}
+.lbr .sc{font-family:var(--mono);font-weight:700;font-size:1.25rem;min-width:3.2ch;text-align:right;font-variant-numeric:tabular-nums}
+.lbr .gain{position:absolute;right:12px;top:-2px;font-family:var(--mono);font-weight:700;font-size:.8rem;color:var(--ok);z-index:2;
+  animation:gain 1.8s ease-out both;pointer-events:none}
+@keyframes gain{0%{opacity:0;transform:translateY(8px) scale(.8)}15%{opacity:1;transform:translateY(0) scale(1.15)}70%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+.lbr.gone{opacity:.45}
+.lbr .last{grid-column:2/-1;font-size:.72rem;color:var(--muted);margin-top:-4px}
+@media (prefers-reduced-motion: reduce){.lbr,.lbr .fill{transition:none}.lbr.r1::after,.lbr .gain{animation:none}}
+.rules{font-size:.78rem;color:var(--muted)}
+.rules summary{cursor:pointer;width:max-content}
 .vs #vsLive .code{padding:0;text-decoration:none}
 .vs .score{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
 .vs .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--miss);margin-right:6px;vertical-align:1px}
@@ -240,9 +273,13 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <span class="label">对战</span>
       <span>房间 <button type="button" class="code linkbtn" id="vsRoom" title="点击复制房间号"></button></span>
       <span class="diffnote" id="vsStatus"></span>
-      <span class="scoreline" id="vsScore" title="第 1–6 次猜对得 100/80/60/45/30/20 分，越快额外加分（最多 +20，每 6 秒少 1 分），没猜中 0 分"></span>
+      <span class="diffnote" id="vsRound"></span>
       <button type="button" class="btn primary" id="vsStart" hidden>开始对战</button>
       <button type="button" class="btn" id="vsLeave">离开</button>
+    </div>
+    <div class="sboard" id="vsBoard" hidden>
+      <div class="lb" id="vsScore" role="list" aria-label="积分榜"></div>
+      <details class="rules"><summary>计分规则</summary>第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。</details>
     </div>
   </section>
   </div>
@@ -906,7 +943,7 @@ function vsCheckRound(){
     f.pts = roundPoints(f);
     const name = f.key === 'me' ? myNick() : nameOf(ps.find(p => p.peer === f.key));
     const b = VS.board[f.key] || (VS.board[f.key] = {name, pts:0, wins:0, solved:0, tries:0, ms:0, rounds:0});
-    b.name = name; b.rounds++; b.pts += f.pts;
+    b.name = name; b.rounds++; b.pts += f.pts; b.last = {pts:f.pts, solved:f.solved, n:f.n, ms:f.ms};
     if(f.solved){ b.solved++; b.tries += f.n; b.ms += f.ms; }
   });
   const mine = field[0].pts;
@@ -934,7 +971,7 @@ function nameOf(p){
 function vsRender(){
   const live = !!VS.room;
   $('vsIdle').hidden = live; $('vsLive').hidden = !live;
-  $('opps').hidden = !live;
+  $('opps').hidden = !live; $('vsBoard').hidden = !live;
   document.querySelector('.settings').classList.toggle('locked', live && (!VS.host || (VS.round > 0 && !over)));
   if(!live){ $('nextBtn').textContent = '下一题'; $('nextBtn').disabled = false; return; }
   const ps = others();
@@ -978,14 +1015,47 @@ function renderBoard(ps){
     const name = k === 'me' ? myNick() : (here.has(k) ? nameOf(ps.find(p => p.peer === k)) : b.name);
     return {k, name, b, gone: k !== 'me' && !here.has(k)};
   }).sort((a,b) => b.b.pts - a.b.pts || b.b.wins - a.b.wins);
-  const box = $('vsScore'); box.innerHTML = '';
-  rows.filter(r => !r.gone || r.b.pts).forEach(r => {
-    const el = document.createElement('span');
-    el.className = (r.k === 'me' ? 'me' : '') + (r.gone ? ' gone' : '');
-    el.textContent = r.name;
-    const pt = document.createElement('span'); pt.className = 'pt'; pt.textContent = r.b.pts; el.appendChild(pt);
+  const box = $('vsScore');
+  const list = rows.filter(r => !r.gone || r.b.pts);
+  const top = Math.max(1, ...list.map(r => r.b.pts));
+  // FLIP: remember where each row was so a change of rank slides instead of jumping
+  const before = new Map([...box.children].map(el => [el.dataset.k, el.getBoundingClientRect().top]));
+  const seen = new Set();
+  list.forEach((r, i) => {
+    let el = box.querySelector(`[data-k="${CSS.escape(r.k)}"]`);
+    if(!el){
+      el = document.createElement('div'); el.dataset.k = r.k; el.setAttribute('role', 'listitem');
+      el.innerHTML = '<div class="fill"></div><span class="rk"></span><span class="nm"></span><span class="lastc"></span><span class="wins"></span><span class="sc">0</span>';
+      el._pts = 0;
+    }
+    seen.add(r.k);
+    el.className = 'lbr r' + (r.b.pts > 0 ? i + 1 : 0) + (r.k === 'me' ? ' me' : '') + (r.gone ? ' gone' : '');
+    el.querySelector('.rk').textContent = r.b.pts > 0 && i === 0 ? '👑' : i + 1;
+    const nm = el.querySelector('.nm'); nm.textContent = r.name;
+    const tag = r.k === 'me' ? '你' : r.gone ? '已离开' : '';
+    if(tag){ const t = document.createElement('small'); t.textContent = tag; nm.appendChild(t); }
+    el.querySelector('.wins').innerHTML = r.b.wins ? `🏆 <b>${r.b.wins}</b>` : '';
+    el.style.setProperty('--w', (r.b.pts / top * 100).toFixed(1) + '%');
+    const l = r.b.last;
+    el.querySelector('.lastc').innerHTML = l ? (l.solved ? `上局 <b>+${l.pts}</b><i> · ${l.n} 次 · ${(l.ms/1000).toFixed(1)}s</i>` : '上局 没猜中') : '';
+    el.title = l ? (l.solved ? `上一局 +${l.pts}：${l.n} 次猜对，${(l.ms/1000).toFixed(1)} 秒` : '上一局没猜中') : '';
+    if(el._pts !== r.b.pts){
+      const from = el._pts, to = r.b.pts, sc = el.querySelector('.sc'), t0 = performance.now();
+      el._pts = to;
+      if(to > from){ const g = document.createElement('span'); g.className = 'gain'; g.textContent = '+' + (to - from); el.appendChild(g); setTimeout(() => g.remove(), 1900); }
+      const step = now => { const k = Math.min(1, (now - t0) / 900), e = 1 - (1 - k) ** 3; sc.textContent = Math.round(from + (to - from) * e); if(k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    }
     box.appendChild(el);
   });
+  [...box.children].forEach(el => { if(!seen.has(el.dataset.k)) el.remove(); });
+  [...box.children].forEach(el => {
+    const was = before.get(el.dataset.k); if(was == null) return;
+    const dy = was - el.getBoundingClientRect().top; if(!dy) return;
+    el.style.transition = 'none'; el.style.transform = `translateY(${dy}px)`;
+    requestAnimationFrame(() => { el.style.transition = ''; el.style.transform = ''; });
+  });
+  $('vsRound').textContent = VS.round ? `第 ${VS.round} 局` : '';
 }
 const myPeerId = () => { const m = VS.room && VS.room.peers().find(p => p.sameTab); return m ? m.peer : ''; };
 // If the host is gone for a few seconds, the remaining player with the smallest id takes over.
@@ -1073,7 +1143,7 @@ async function vsEnter(code, host){
 }
 function vsExit(){
   if(unsubPeers){ unsubPeers(); unsubPeers = null; }
-  const r = VS.room; VS.room = null; VS.round = 0; VS.code = ''; VS.offline = false;
+  const r = VS.room; VS.room = null; VS.round = 0; VS.code = ''; VS.offline = false; $('vsScore').innerHTML = '';
   clearTimeout(VS.hostT); VS.hostT = 0;
   if(r) r.leave().catch(() => {});
   $('vsNote').textContent = '';
