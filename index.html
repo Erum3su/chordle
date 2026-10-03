@@ -44,6 +44,14 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
 h1{font-family:var(--display);font-weight:900;font-size:2rem;margin:0;letter-spacing:.01em;line-height:1.1;text-wrap:balance}
 h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:4px}
 .stats{display:flex;gap:18px;font-variant-numeric:tabular-nums}
+.hright{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.inst{position:relative;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px 4px 10px;color:var(--fg);cursor:pointer}
+.inst svg{width:14px;height:14px;fill:var(--accent);flex:none}
+.inst select{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:inherit;font:inherit;font-size:.85rem;font-weight:500;padding:0 14px 0 0;cursor:pointer;outline:none}
+.inst::after{content:"";position:absolute;right:11px;top:50%;width:6px;height:6px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.inst:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.inst.loading svg{animation:pulse 1s ease-in-out infinite}
+@media (max-width:480px){.hright{gap:6px}}
 .stat{display:flex;flex-direction:column;align-items:flex-end}
 .stat b{font-family:var(--mono);font-size:1.25rem}
 .stat span{font-size:.72rem;color:var(--muted);letter-spacing:.08em}
@@ -224,12 +232,15 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
 <div class="wrap">
   <header>
     <h1>Chordle<small>听一遍，在琴键上找出它</small></h1>
+    <div class="hright">
+    <label class="inst" title="音色"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg><select id="instSel" aria-label="音色"></select></label>
     <div class="stats">
       <div class="stat"><b id="sPlayed">0</b><span>局数</span></div>
       <div class="stat"><b id="sWin">0%</b><span>胜率</span></div>
       <div class="stat" id="streakStat"><b id="sStreak">0</b><span>连胜</span></div>
       <div class="stat"><b id="sBest">0</b><span>最佳</span></div>
       <span class="titlechip" id="sTitle" hidden></span>
+    </div>
     </div>
   </header>
 
@@ -316,7 +327,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <span><i style="background:var(--miss)"></i>不在和弦里</span>
     </div>
   </section>
-  <footer><span class="keys">空格 播放 · P 播放我的选择 · 回车 提交 · 退格 清除 · </span>点已提交的行可重听<br>钢琴采样：tonejs-instruments（MIT）</footer>
+  <footer><span class="keys">空格 播放 · P 播放我的选择 · 回车 提交 · 退格 清除 · </span>点已提交的行可重听<br>乐器采样：tonejs-instruments（MIT）</footer>
 </div>
 
 <script>
@@ -414,9 +425,8 @@ function getCtx(){
   }
   return ctx;
 }
-function pianoNote(m, t, vel=0.6, dur=2.6){
+function sampleNote(buffers, m, t, vel, dur){
   const keys = Object.keys(buffers).map(Number);
-  if(!keys.length) return synthNote(m, t, vel, dur);
   const a = audio();
   let s = keys[0];
   keys.forEach(k => { if(Math.abs(k - m) < Math.abs(s - m)) s = k; });
@@ -429,6 +439,90 @@ function pianoNote(m, t, vel=0.6, dur=2.6){
   g.gain.exponentialRampToValueAtTime(0.001, t + end + 0.35);
   src.connect(g); g.connect(master);
   src.start(t); src.stop(t + end + 0.4);
+}
+// ---------- instruments ----------
+// Sampled ones load from /samples/<id>/<midi>.mp3 the first time they are picked (tonejs-instruments, MIT);
+// electric piano and synth are built from oscillators.
+const INSTRUMENTS = [
+  {id:'piano',   name:'钢琴'},
+  {id:'epiano',  name:'电钢琴',   synth:epianoNote},
+  {id:'guitar',  name:'原声吉他', notes:[38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74]},
+  {id:'nylon',   name:'尼龙吉他', notes:[35, 38, 42, 45, 49, 52, 55, 59, 63, 66, 69, 73, 76, 79, 82]},
+  {id:'eguitar', name:'电吉他',   notes:[37, 40, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
+  {id:'synth',   name:'合成器',   synth:padNote},
+  {id:'organ',   name:'风琴',     notes:[33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84], gain:0.9},
+  {id:'harp',    name:'竖琴',     notes:[35, 38, 41, 45, 48, 52, 55, 59, 62, 65, 69, 72, 76, 79, 83, 86]},
+  {id:'strings', name:'弦乐',     notes:[36, 39, 43, 46, 49, 52, 55, 60, 64, 67, 72, 76, 79, 84, 88]},
+];
+let inst = INSTRUMENTS[0];
+const instBufs = {}, instLoads = {};
+function loadInst(i){
+  if(!i.notes) return Promise.resolve();
+  if(instLoads[i.id]) return instLoads[i.id];
+  const a = getCtx(), bufs = instBufs[i.id] = {};
+  return instLoads[i.id] = Promise.all(i.notes.map(m => fetch(`/samples/${i.id}/${m}.mp3`)
+    .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+    .then(ab => new Promise(res => a.decodeAudioData(ab, b => { bufs[m] = b; res(); }, () => res())))
+    .catch(() => {})));
+}
+// wait for the current instrument, but never longer than 4 s; until then the piano stands in
+function instReady(){
+  return Promise.race([Promise.all([loadSamples(), loadInst(inst)]), new Promise(r => setTimeout(r, 4000))]);
+}
+function setInst(id){
+  inst = INSTRUMENTS.find(x => x.id === id) || INSTRUMENTS[0];
+  try{ localStorage.setItem('chordle:inst', inst.id); }catch(e){}
+  const sel = $('instSel'); if(sel) sel.value = inst.id;
+  if(inst.notes){
+    const lab = sel && sel.parentNode; if(lab) lab.classList.add('loading');
+    loadInst(inst).then(() => { if(lab) lab.classList.remove('loading'); });
+  }
+}
+function pianoNote(m, t, vel=0.6, dur=2.6){
+  if(inst.synth) return inst.synth(m, t, vel, dur);
+  const bufs = inst.notes ? instBufs[inst.id] : null;
+  if(bufs && Object.keys(bufs).length) return sampleNote(bufs, m, t, vel * (inst.gain || 1), dur);
+  if(Object.keys(buffers).length) return sampleNote(buffers, m, t, vel, dur);
+  return synthNote(m, t, vel, dur);
+}
+// Rhodes-style electric piano: FM bell tone with a fast tine click and a slow decay
+function epianoNote(m, t, vel=0.6, dur=2.6){
+  const a = audio(), f = 440 * Math.pow(2, (m - 69) / 12);
+  const out = a.createGain(); out.connect(master);
+  const car = a.createOscillator(), mod = a.createOscillator(), mg = a.createGain();
+  car.frequency.value = f; mod.frequency.value = f;
+  mg.gain.setValueAtTime(f * 2.2 * vel, t); mg.gain.exponentialRampToValueAtTime(f * 0.25, t + 0.6);
+  mod.connect(mg); mg.connect(car.frequency);
+  const tine = a.createOscillator(), tg = a.createGain();
+  tine.frequency.value = f * 14; tg.gain.setValueAtTime(0.05 * vel, t); tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+  tine.connect(tg); tg.connect(out);
+  const ag = a.createGain(), decay = Math.max(0.9, 2.4 - (m - 48) / 30);
+  ag.gain.setValueAtTime(0, t); ag.gain.linearRampToValueAtTime(0.3 * vel, t + 0.005);
+  ag.gain.setTargetAtTime(0.0001, t + 0.01, decay / 2.5);
+  ag.gain.setTargetAtTime(0.0001, t + dur, 0.12);
+  car.connect(ag); ag.connect(out);
+  // gentle tremolo
+  const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = 4.5; lg.gain.value = 0.06 * vel;
+  lfo.connect(lg); lg.connect(ag.gain);
+  [car, mod, tine, lfo].forEach(o => { o.start(t); o.stop(t + dur + 0.8); });
+}
+// warm analog-style synth: two detuned saws and a sub square through an enveloped low-pass
+function padNote(m, t, vel=0.6, dur=2.6){
+  const a = audio(), f = 440 * Math.pow(2, (m - 69) / 12);
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 4;
+  lp.frequency.setValueAtTime(f * 1.5, t);
+  lp.frequency.linearRampToValueAtTime(Math.min(9000, f * 7), t + 0.08);
+  lp.frequency.setTargetAtTime(Math.min(5000, f * 3), t + 0.1, 0.5);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.2 * vel, t + 0.03);
+  g.gain.setTargetAtTime(0.14 * vel, t + 0.05, 0.4);
+  g.gain.setTargetAtTime(0.0001, t + dur, 0.25);
+  lp.connect(g); g.connect(master);
+  [[-7, 'sawtooth', 1], [7, 'sawtooth', 1], [0, 'square', 0.5]].forEach(([cents, type, lvl], i) => {
+    const o = a.createOscillator(), og = a.createGain();
+    o.type = type; o.frequency.value = i === 2 ? f / 2 : f; o.detune.value = cents; og.gain.value = lvl * 0.33;
+    o.connect(og); og.connect(lp); o.start(t); o.stop(t + dur + 1.5);
+  });
 }
 // fallback synth, used only if the samples fail to decode
 function synthNote(m, t, vel=0.6, dur=2.6){
@@ -467,7 +561,7 @@ function synthNote(m, t, vel=0.6, dur=2.6){
 }
 function playChord(notes){
   audio();
-  loadSamples().then(() => {
+  instReady().then(() => {
     const t = ctx.currentTime + 0.05;
     notes.slice().sort((x,y)=>x-y).forEach((m,i) => pianoNote(m, t + i*0.09, 0.55, 2.6 + (notes.length - 1 - i)*0.09));
   });
@@ -513,10 +607,7 @@ function buildExt(D, T){
   if(notes.length > 6 || !voicingOk(notes, D, null, true)) return null;
   return {type:T, rootPc, inv:0, open:false, alt:null, notes};
 }
-function buildChord(D){
-  const list = pool();
-  const pick = list[rand(list.length)];
-  const T = TYPES.find(t => t.id === pick);
+function buildChord(D, T){
   if(T.g === 9) return buildExt(D, T);
   const rootPc = rand(12);
   const size = T.iv.length;
@@ -577,7 +668,13 @@ function buildChord(D){
 }
 function makeChord(){
   const D = DIFF[diff];
-  for(let i = 0; i < 400; i++){ const c = buildChord(D); if(c) return c; }
+  // pick the type first and retry voicings for that type, so every selected type comes up equally often
+  // (re-picking after a failed voicing used to starve types whose voicings fail more, like maj7)
+  const list = pool();
+  for(let k = 0; k < 4; k++){
+    const id = list[rand(list.length)], T = TYPES.find(t => t.id === id);
+    for(let i = 0; i < 300; i++){ const c = buildChord(D, T); if(c) return c; }
+  }
   // safety net: plain close root-position chord in the middle of the keyboard
   const T = TYPES.find(t => t.id === pool()[0] && t.g !== 9) || TYPES[0];
   const root = 60 + rand(7);
@@ -879,7 +976,7 @@ $('kb').addEventListener('pointerdown', e => {
   renderGrid(); renderAll();
 });
 document.addEventListener('keydown', e => {
-  if(e.target.closest && e.target.closest('input,textarea')) return;
+  if(e.target.closest && e.target.closest('input,textarea,select')) return;
   if(e.key === ' '){ e.preventDefault(); doPlay(); }
   else if(e.key === 'p' || e.key === 'P'){ if(sel.length) playChord(sel); }
   else if(e.key === 'Enter'){ if(e.target.closest && e.target.closest('button')) return; if(over) newRound(); else submit(); }
@@ -1175,6 +1272,17 @@ $('vsRoom').onclick = () => {
 })();
 
 try{ loadSamples(); }catch(e){}
+{
+  const sel = $('instSel');
+  INSTRUMENTS.forEach(i => { const o = document.createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
+  let saved = null; try{ saved = localStorage.getItem('chordle:inst'); }catch(e){}
+  setInst(saved || 'piano');
+  sel.addEventListener('change', () => {
+    setInst(sel.value);
+    instReady().then(() => { const t = audio().currentTime + 0.05; [60, 64, 67].forEach((m, i) => pianoNote(m, t + i * 0.09, 0.5, 1.4)); });
+    sel.blur();
+  });
+}
 beginRound(null);
 })();
 </script>
