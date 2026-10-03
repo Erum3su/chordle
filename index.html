@@ -373,6 +373,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <div class="seg" id="modeSeg">
         <button type="button" data-mode="single">单个和弦</button>
         <button type="button" data-mode="prog">和弦进行</button>
+        <button type="button" data-mode="interval">猜音程</button>
       </div>
       <span class="diffnote" id="modeNote"></span>
     </div>
@@ -463,13 +464,13 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
     <div class="legend" aria-label="颜色说明">
       <span><i style="background:var(--ok)"></i>音名和位置都对</span>
       <span><i style="background:var(--near)"></i>音名对，八度不对</span>
-      <span><i style="background:var(--miss)"></i>不在和弦里</span>
+      <span><i style="background:var(--miss)"></i><span id="missLegend">不在和弦里</span></span>
     </div>
   </section>
   <dialog class="sdlg helpdlg" id="helpDlg" aria-label="快捷键指南">
     <div class="sdlg-head"><b>快捷键指南</b><button type="button" class="btn" id="helpClose">关闭</button></div>
     <div class="hsec">
-      <h4>单个和弦：琴键（和 GarageBand 的“音乐键入”一样）</h4>
+      <h4>单个和弦和猜音程：琴键（和 GarageBand 的“音乐键入”一样）</h4>
       <div class="kmap">
         <div class="nil"></div><div class="bk">W<small>C♯</small></div><div class="bk">E<small>D♯</small></div><div class="nil"></div><div class="bk">T<small>F♯</small></div><div class="bk">Y<small>G♯</small></div><div class="bk">U<small>A♯</small></div><div class="nil"></div><div class="bk">O<small>C♯</small></div><div class="bk">P<small>D♯</small></div><div class="nil"></div><div class="nil"></div>
         <div>A<small>C</small></div><div>S<small>D</small></div><div>D<small>E</small></div><div>F<small>F</small></div><div>G<small>G</small></div><div>H<small>A</small></div><div>J<small>B</small></div><div>K<small>C</small></div><div>L<small>D</small></div><div>;<small>E</small></div><div>'<small>F</small></div><div class="nil"></div>
@@ -486,7 +487,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
       <div class="hrow"><span><kbd>1</kbd>…<kbd>6</kbd></span><span>重听第几次的猜测</span></div>
       <h4>设置</h4>
       <div class="hrow"><span><kbd>⇧</kbd><kbd>1</kbd>…<kbd>4</kbd></span><span>难度：简单 / 普通 / 困难 / 大师</span></div>
-      <div class="hrow"><span><kbd>⇧</kbd><kbd>M</kbd></span><span>切换单个和弦 / 和弦进行</span></div>
+      <div class="hrow"><span><kbd>⇧</kbd><kbd>M</kbd></span><span>切换单个和弦 / 和弦进行 / 猜音程</span></div>
       <div class="hrow"><span><kbd>⇧</kbd><kbd>I</kbd></span><span>换下一个音色</span></div>
       <div class="hrow"><span><kbd>⇧</kbd><kbd>S</kbd></span><span>打开个人统计</span></div>
       <div class="hrow"><span><kbd>?</kbd></span><span>打开 / 关闭这份指南，<kbd>esc</kbd> 关闭弹窗</span></div>
@@ -494,7 +495,7 @@ footer{font-size:.75rem;color:var(--muted);text-align:center;max-width:62ch;marg
   </dialog>
   <dialog class="sdlg" id="statsDlg" aria-label="个人统计">
     <div class="sdlg-head"><b>个人统计</b><button type="button" class="btn" id="statsClose">关闭</button></div>
-    <div class="seg" id="statsTabs"><button type="button" data-t="single" aria-pressed="true">单个和弦</button><button type="button" data-t="prog">和弦进行</button></div>
+    <div class="seg" id="statsTabs"><button type="button" data-t="single" aria-pressed="true">单个和弦</button><button type="button" data-t="prog">和弦进行</button><button type="button" data-t="interval">猜音程</button></div>
     <div class="seg sm" id="statsDiffs"><button type="button" data-d="all" aria-pressed="true">全部</button><button type="button" data-d="easy">简单</button><button type="button" data-d="normal">普通</button><button type="button" data-d="hard">困难</button><button type="button" data-d="expert">大师</button></div>
     <div class="sdlg-scroll" id="statsBody"></div>
     <div class="sdlg-foot"><span class="diffnote">统计只保存在这台设备的浏览器里。</span><button type="button" class="linkbtn" id="statsReset">清空统计</button></div>
@@ -585,6 +586,7 @@ let diff = store.get('diff','easy');
 if(!DIFF[diff]) diff = 'easy';
 let types = TYPES.map(t => t.id);   // every visit starts with all chord types selected
 let stats = Object.assign({played:0,won:0,streak:0,best:0}, store.get('stats',{}));
+const istats = Object.assign({played:0,won:0,streak:0,best:0}, store.get('istats',{}));
 stats.best = Math.max(stats.best, stats.streak);
 const MILESTONES = [
   {n:3,  title:'调音师'},
@@ -886,6 +888,7 @@ function buildChord(D, T){
   return {type:T, rootPc, inv, open, alt, notes};
 }
 function makeChord(){
+  if(MODE === 'interval') return makeInterval();
   const D = DIFF[diff];
   // pick the type first and retry voicings for that type, so every selected type comes up equally often
   // (re-picking after a failed voicing used to starve types whose voicings fail more, like maj7)
@@ -899,13 +902,43 @@ function makeChord(){
   const root = 60 + rand(7);
   return {type:T, rootPc: root % 12, inv:0, open:false, alt:null, notes:T.iv.map(x => root + x)};
 }
+// ---------- intervals ----------
+const IV_ZH = ['纯一度','小二度','大二度','小三度','大三度','纯四度','三全音','纯五度','小六度','大六度','小七度','大七度','纯八度','小九度','大九度','小十度','大十度','纯十一度','增十一度','纯十二度','小十三度','大十三度','小十四度','大十四度','纯十五度'];
+const IV_EN = ['unison','minor 2nd','major 2nd','minor 3rd','major 3rd','perfect 4th','tritone','perfect 5th','minor 6th','major 6th','minor 7th','major 7th','octave','minor 9th','major 9th','minor 10th','major 10th','perfect 11th','augmented 11th','perfect 12th','minor 13th','major 13th','minor 14th','major 14th','double octave'];
+const ivName = n => L(IV_ZH, IV_EN)[n] || n;
+const INTERVALS = Array.from({length:24}, (_, i) => ({id:'iv' + (i + 1), n:i + 1}));
+// easy: ascending within an octave; normal adds descending; hard adds both notes at once; master goes up to two octaves
+const IV_DIFF = {easy:{max:12, dirs:['up']}, normal:{max:12, dirs:['up','down']}, hard:{max:12, dirs:['up','down','harm']}, expert:{max:24, dirs:['up','down','harm']}};
+const IV_NOTE = {easy:['上行旋律音程 · 八度以内', 'Ascending, one note after the other · within an octave'], normal:['上行和下行 · 八度以内', 'Ascending and descending · within an octave'],
+  hard:['上行、下行和同时发声 · 八度以内', 'Up, down, and both notes at once · within an octave'], expert:['上行、下行和同时发声 · 最大两个八度', 'Up, down, and both notes at once · up to two octaves']};
+const IV_DIR = {up:['上行', 'ascending'], down:['下行', 'descending'], harm:['同时发声', 'both at once']};
+function makeInterval(){
+  const D = DIFF[diff], V = IV_DIFF[diff];
+  const n = 1 + rand(V.max), dir = V.dirs[rand(V.dirs.length)];
+  const lo = D.lo + rand(Math.max(1, D.hi - D.lo - n + 1));
+  return {type:{id:'iv' + n, iv:[0, n], sym:'', zh:IV_ZH[n], g:0, interval:true}, rootPc: lo % 12, inv:0, open:false, alt:null, notes:[lo, lo + n], ivDir:dir};
+}
+// the question as it should sound: intervals play one note after the other unless they're harmonic
+function playAnswer(){
+  if(!chord.ivDir) return playChord(chord.notes);
+  audio();
+  instReady().then(() => {
+    const t = ctx.currentTime + 0.05, [a, b] = chord.notes;
+    if(chord.ivDir === 'harm'){ pianoNote(a, t, 0.55, 2.4); pianoNote(b, t, 0.55, 2.4); return; }
+    const [x, y] = chord.ivDir === 'down' ? [b, a] : [a, b];
+    pianoNote(x, t, 0.55, 1.5); pianoNote(y, t + 0.75, 0.55, 2.2);
+  });
+}
+const noteList = c => !c.ivDir ? c.notes.map(noteName).join(' ') : c.ivDir === 'harm' ? c.notes.map(noteName).join(' + ') : (c.ivDir === 'down' ? c.notes.slice().reverse() : c.notes).map(noteName).join(' → ');
 function chordTitle(c){
+  if(c.type.interval) return ivName(c.notes[1] - c.notes[0]);
   const bass = c.notes[0] % 12;
   let s = NAMES[c.rootPc] + c.type.sym + (c.alt ? '(' + c.alt.sym + ')' : '');
   if(c.inv) s += '/' + NAMES[bass];
   return s;
 }
 function chordDesc(c){
+  if(c.type.interval) return L(...IV_DIR[c.ivDir]);
   if(LANG === 'en'){
     if(c.type.g === 9) return NAMES[c.rootPc] + ' ' + tz(c.type) + (c.type.ust ? ' (' + UST_EN[c.type.id] + ' over a dominant 7th)' : ' chord') + ' · root in the bass';
     return NAMES[c.rootPc] + ' ' + tz(c.type) + ' · ' + INV_EN[c.inv] + (c.open ? ' · open voicing' : '') + (c.alt ? ' · altered ' + c.alt.sym : '');
@@ -924,7 +957,7 @@ function newRound(){
   beginRound(null);
 }
 function beginRound(seed){
-  if(!pool().length){
+  if(MODE !== 'interval' && !pool().length){
     chord = null; tries = []; sel = []; keyState = {}; over = false; locked = false;
     $('result').hidden = true; $('actBtns').hidden = false;
     setMsg(types.length ? L('扩展和弦只在大师难度出现，这个难度请至少选一种基础和弦类型。', 'Extended chords only appear on Master. Pick at least one basic chord type for this level.') : L('请至少选一种和弦类型。', 'Pick at least one chord type.'), true);
@@ -937,7 +970,8 @@ function beginRound(seed){
   tries = []; sel = []; keyState = {}; over = false; locked = false;
   playsLeft = DIFF[diff].plays;
   $('result').hidden = true; $('actBtns').hidden = false; $('kb').classList.remove('celebrate');
-  setMsg(VS.room ? L(`第 ${VS.round} 局开始，先听一遍和弦。`, `Round ${VS.round}. Listen to the chord first.`) : L('先听一遍和弦。', 'Listen to the chord first.'));
+  { const what = MODE === 'interval' ? L('音程', 'interval') : L('和弦', 'chord');
+  setMsg(VS.room ? L(`第 ${VS.round} 局开始，先听一遍${what}。`, `Round ${VS.round}. Listen to the ${what} first.`) : L(`先听一遍${what}。`, `Listen to the ${what} first.`)); }
   buildKeyboard(); renderGrid(); renderAll();
   vsPublish();
 }
@@ -978,31 +1012,32 @@ function finish(won){
   over = true;
   recordType(chord.type.id, won, tries.length, performance.now() - VS.startMs);
   if(VS.room) return vsFinish(won);
-  stats.played++;
-  const lost = stats.streak;
-  if(won){ stats.won++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); } else stats.streak = 0;
-  store.set('stats', stats);
+  const ST = MODE === 'interval' ? istats : stats;
+  ST.played++;
+  const lost = ST.streak;
+  if(won){ ST.won++; ST.streak++; ST.best = Math.max(ST.best, ST.streak); } else ST.streak = 0;
+  store.set(MODE === 'interval' ? 'istats' : 'stats', ST);
   const praise = L(['一耳朵就听出来了！','漂亮！','很好！','不错！','有惊无险。','最后一次，拿下！'], ['Got it by ear in one!','Beautiful!','Very good!','Nice!','Phew, close one.','Last try, nailed it!']);
   setMsg(won ? praise[tries.length-1] : (lost >= 2 ? L(`连胜 ${lost} 局到此为止，下一局重新开始！答案是：`, `Your ${lost}-game streak ends here. The answer was:`) : L('这次没猜中，答案是：', 'Not this time. The answer was:')));
-  const ms = won ? MILESTONES.find(m => m.n === stats.streak) : null;
+  const ms = won && MODE === 'single' ? MILESTONES.find(m => m.n === ST.streak) : null;   // titles belong to single-chord mode
   const rw = $('reward'), res = $('result');
   res.classList.toggle('win', won); res.classList.toggle('milestone', !!ms);
-  rw.hidden = !(won && stats.streak >= 2);
+  rw.hidden = !(won && ST.streak >= 2);
   if(!rw.hidden){
     rw.style.animation = 'none'; void rw.offsetWidth; rw.style.animation = '';
-    $('rStreak').textContent = '🔥 ' + (L(STREAK_LINES, STREAK_EN)[stats.streak] || L(`连胜 ${stats.streak} 局，势不可挡！`, `${stats.streak} in a row, unstoppable!`));
-    $('rBadge').innerHTML = ms ? L(`解锁称号：<b>「${mt(ms)}」</b>`, `Title unlocked: <b>${mt(ms)}</b>`) : (() => {
-      const next = MILESTONES.find(m => m.n > stats.streak);
-      return next ? L(`再赢 ${next.n - stats.streak} 局解锁「${mt(next)}」`, `${next.n - stats.streak} more wins to unlock “${mt(next)}”`) : '';
+    $('rStreak').textContent = '🔥 ' + (L(STREAK_LINES, STREAK_EN)[ST.streak] || L(`连胜 ${ST.streak} 局，势不可挡！`, `${ST.streak} in a row, unstoppable!`));
+    $('rBadge').innerHTML = MODE !== 'single' ? '' : ms ? L(`解锁称号：<b>「${mt(ms)}」</b>`, `Title unlocked: <b>${mt(ms)}</b>`) : (() => {
+      const next = MILESTONES.find(m => m.n > ST.streak);
+      return next ? L(`再赢 ${next.n - ST.streak} 局解锁「${mt(next)}」`, `${next.n - ST.streak} more wins to unlock “${mt(next)}”`) : '';
     })();
   }
   if(won){
-    celebrate(ms ? 3 : stats.streak >= 2 ? 1.6 : 1);
+    celebrate(ms ? 3 : ST.streak >= 2 ? 1.6 : 1);
     fanfare(!!ms);
     const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate');
   }
   $('rName').textContent = chordTitle(chord);
-  $('rNotes').textContent = chordDesc(chord) + ' · ' + chord.notes.map(noteName).join(' ');
+  $('rNotes').textContent = chordDesc(chord) + ' · ' + noteList(chord);
   $('result').hidden = false; $('actBtns').hidden = true;
   renderAll();
 }
@@ -1174,7 +1209,7 @@ function renderGrid(flipRow){
     }
     const shown = t ? t.guess : cur && cur.length ? cur : null;
     if(shown){
-      const nm = nameSelection(shown), lab = document.createElement('span');
+      const nm = MODE === 'interval' && shown.length === 2 ? {sym: ivName(Math.abs(shown[1] - shown[0]))} : nameSelection(shown), lab = document.createElement('span');
       lab.className = 'rname' + (t ? '' : ' live') + (nm ? '' : ' unk');
       lab.textContent = nm ? nm.sym : '?';
       if(nm) lab.title = nm.sym;
@@ -1186,7 +1221,7 @@ function renderGrid(flipRow){
 function renderAll(){
   const D = DIFF[diff];
   document.querySelectorAll('#diffSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === diff));
-  $('diffNote').textContent = MODE === 'prog' ? L(PROG_NOTE[diff], PROG_NOTE_EN[diff]) : L(D.note, DIFF_NOTE_EN[diff]);
+  $('diffNote').textContent = MODE === 'prog' ? L(PROG_NOTE[diff], PROG_NOTE_EN[diff]) : MODE === 'interval' ? L(...IV_NOTE[diff]) : L(D.note, DIFF_NOTE_EN[diff]);
   document.querySelectorAll('#typeChips .chip').forEach(c => { c.setAttribute('aria-pressed', types.includes(c.dataset.t)); c.hidden = !typeOkId(c.dataset.t, D); });
   $('allExt').hidden = !D.ext; $('allColor').hidden = !D.color;
   const shown = TYPES.filter(t => types.includes(t.id) && typeOk(t, D));
@@ -1288,15 +1323,15 @@ document.querySelectorAll('#diffSeg button').forEach(b => b.onclick = () => {
 
 function doPlay(){
   if(!chord) return;
-  if(over){ playChord(chord.notes); return; }
+  if(over){ playAnswer(); return; }
   if(locked || playsLeft <= 0) return;
-  playsLeft--; playChord(chord.notes);
+  playsLeft--; playAnswer();
   if(!tries.length && !sel.length) setMsg('');
   renderAll();
 }
 $('playBtn').onclick = doPlay;
 $('playSel').onclick = () => { if(sel.length) playChord(sel); };
-$('replayAns').onclick = () => chord && playChord(chord.notes);
+$('replayAns').onclick = () => chord && playAnswer();
 $('nextBtn').onclick = newRound;
 $('clearBtn').onclick = () => { sel = []; renderGrid(); renderAll(); };
 $('submitBtn').onclick = submit;
@@ -1349,7 +1384,7 @@ document.addEventListener('keydown', e => {
   if(e.shiftKey){
     const dm = {Digit1:'easy', Digit2:'normal', Digit3:'hard', Digit4:'expert'}[code];
     if(dm){ e.preventDefault(); $('d-' + dm).click(); return; }
-    if(code === 'KeyM'){ e.preventDefault(); setMode(prog ? 'single' : 'prog'); return; }
+    if(code === 'KeyM'){ e.preventDefault(); setMode({single:'prog', prog:'interval', interval:'single'}[MODE]); return; }
     if(code === 'KeyI'){
       e.preventDefault();
       const i = INSTRUMENTS.indexOf(inst); setInst(INSTRUMENTS[(i + 1) % INSTRUMENTS.length].id);
@@ -1397,7 +1432,7 @@ document.addEventListener('keydown', e => {
 let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { buildKeyboard(); renderKeys(); }, 150); });
 
 // ---------- mode ----------
-let MODE = store.get('mode', 'single') === 'prog' ? 'prog' : 'single';
+let MODE = ['prog', 'interval'].includes(store.get('mode', 'single')) ? store.get('mode', 'single') : 'single';
 function setMode(m){
   if(m === MODE) return;
   if(VS.room && (!VS.host || vsBusy())){ (MODE === 'prog' ? pMsg : setMsg)(L('对战中只有房主能在两局之间切换模式。', 'In versus only the host can switch modes, between rounds.'), true); return; }
@@ -1407,16 +1442,20 @@ function setMode(m){
     else { chord = null; tries = []; sel = []; over = false; $('result').hidden = true; $('actBtns').hidden = false; renderGrid(); }
   }
   MODE = m; store.set('mode', m); applyMode();
+  if(!VS.room && m !== 'prog') beginRound(null);
   if(VS.room){ (m === 'prog' ? pMsg : setMsg)(L('已切换模式，点“下一局”开始。', 'Mode switched. Press “Next round” to start.')); vsPublish(); vsRender(); }
 }
 function applyMode(){
   const prog = MODE === 'prog';
   document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === MODE));
   $('singleStage').hidden = prog; $('progStage').hidden = !prog;
-  $('typeBox').hidden = prog;
+  $('typeBox').hidden = MODE !== 'single';
   (prog ? $('pBoard') : document.querySelector('#singleStage .board')).appendChild($('opps'));
-  $('modeNote').textContent = prog ? L('先告诉你调，听一串和弦，用级数猜出整条进行', 'You get the key, hear a few chords, and name the progression in Roman numerals') : '';
-  document.querySelector('h1 small').textContent = prog ? L('听一串和弦，猜出整条进行', 'Hear a progression, name every chord') : L('听一遍，在琴键上找出它', 'Hear a chord, find it on the keys');
+  const iv = MODE === 'interval';
+  $('modeNote').textContent = prog ? L('先告诉你调，听一串和弦，用级数猜出整条进行', 'You get the key, hear a few chords, and name the progression in Roman numerals') : iv ? L('听两个音，在琴键上把它们都找出来', 'Hear two notes and find both on the keys') : '';
+  document.querySelector('h1 small').textContent = prog ? L('听一串和弦，猜出整条进行', 'Hear a progression, name every chord') : iv ? L('听两个音，找出这个音程', 'Hear two notes, find the interval') : L('听一遍，在琴键上找出它', 'Hear a chord, find it on the keys');
+  $('missLegend').textContent = iv ? L('不是这两个音', 'Not one of the notes') : L('不在和弦里', 'Not in the chord');
+  $('playBtn').querySelector('span').textContent = iv ? L('播放音程', 'Play interval') : L('播放和弦', 'Play chord');
   if(prog && !P.seq && !VS.room) progNew();
   if(prog) progRender();
   renderAll();
@@ -1619,12 +1658,13 @@ $('pSubmit').onclick = progSubmit;
 $('pGive').onclick = () => { if(P.seq && !P.over){ progFinish(false); } };
 
 // ---------- personal stats (this browser only) ----------
-const typeStats = store.get('typeStats', {});
+const typeStats = store.get('typeStats', {}), intTypeStats = store.get('intTypeStats', {});
 const progStats = Object.assign({played:0, won:0, streak:0, best:0, dist:[0,0,0,0,0,0,0], rn:{}}, store.get('progStats', {}));
 function recordType(id, won, n, ms){
-  bump(typeStats, id, won, n, ms);
-  store.set('typeStats', typeStats);
-  bump(byDiff.single[diff] || (byDiff.single[diff] = {}), id, won, n, ms);
+  const iv = MODE === 'interval', map = iv ? intTypeStats : typeStats, bd = iv ? (byDiff.interval || (byDiff.interval = {})) : byDiff.single;
+  bump(map, id, won, n, ms);
+  store.set(iv ? 'intTypeStats' : 'typeStats', map);
+  bump(bd[diff] || (bd[diff] = {}), id, won, n, ms);
   store.set('statsByDiff', byDiff);
 }
 // per-difficulty records (added later; older games only live in the totals above)
@@ -1641,12 +1681,12 @@ function addTime(d, ms){ if(ms > 0 && ms < 600000){ d.ms = (d.ms || 0) + ms; d.m
 const avgTime = r => r.mn ? (r.ms / r.mn / 1000).toFixed(1) + 's' : '–';
 const sumRows = rows => rows.reduce((a, r) => ({n: a.n + r.n, won: a.won + r.won, tries: a.tries + r.tries, ms: a.ms + (r.ms || 0), mn: a.mn + (r.mn || 0), dist: a.dist.map((v, i) => v + (r.dist ? r.dist[i] : 0))}), {n:0, won:0, tries:0, ms:0, mn:0, dist:[0,0,0,0,0,0,0]});
 function renderHeaderStats(){
-  const S = MODE === 'prog' ? progStats : stats;
+  const S = MODE === 'prog' ? progStats : MODE === 'interval' ? istats : stats;
   $('sLine').innerHTML = S.played
     ? L(`<b>${S.played}</b> 局 · 胜率 <b>${Math.round(S.won / S.played * 100)}%</b> · <span class="${S.streak >= 3 ? 'hot' : ''}">连胜 <b>${S.streak}</b></span>（最佳 ${S.best}）`,
         `<b>${S.played}</b> played · <b>${Math.round(S.won / S.played * 100)}%</b> won · <span class="${S.streak >= 3 ? 'hot' : ''}">streak <b>${S.streak}</b></span> (best ${S.best})`)
     : L('还没有战绩', 'No games yet');
-  const tt = MODE === 'prog' ? null : titleFor(stats.best); $('sTitle').hidden = !tt; $('sTitle').textContent = tt || '';
+  const tt = MODE !== 'single' ? null : titleFor(stats.best); $('sTitle').hidden = !tt; $('sTitle').textContent = tt || '';
 }
 let statsTab = 'single';
 function distHtml(dist){
@@ -1674,7 +1714,15 @@ function renderStats(){
   document.querySelectorAll('#statsTabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === statsTab));
   document.querySelectorAll('#statsDiffs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === statsDiff));
   const body = $('statsBody'), all = statsDiff === 'all', dz = all ? '' : L(DIFF_ZH, DIFF_EN)[statsDiff];
-  if(statsTab === 'single'){
+  if(statsTab === 'interval'){
+    const bd = byDiff.interval || {}, src = all ? intTypeStats : (bd[statsDiff] || {});
+    const rows = INTERVALS.filter(t => src[t.id] && src[t.id].n).map(t => ({label: ivName(t.n), ...src[t.id]}));
+    if(!rows.length){ body.innerHTML = `<div class="sempty">${L(`还没有${dz}难度的记录。玩几局猜音程，这里会按音程统计猜对率和平均用几次猜对。`, `No ${dz ? dz + ' ' : ''}games yet. Play some intervals and this shows your solve rate and average tries for each interval.`)}</div>`; return; }
+    const tot = sumRows(rows);
+    body.innerHTML = sumHtml(tot, all ? istats.best : null) + distHtml(tot.dist)
+      + (all ? diffTable(d => sumRows(Object.values(bd[d] || {})), tot.n) : '')
+      + (all ? `<h5>${L('各音程', 'By interval')}</h5>` : '') + tableHtml(rows, L('音程', 'Interval'));
+  } else if(statsTab === 'single'){
     const src = all ? typeStats : (byDiff.single[statsDiff] || {});
     const rows = TYPES.filter(t => src[t.id] && src[t.id].n).map(t => ({label: typeLabel(t), ...src[t.id]})).sort((a, b) => b.n - a.n);
     if(!rows.length){ body.innerHTML = `<div class="sempty">${L(`还没有${dz}难度的记录。玩几局单个和弦，这里会按和弦类型统计猜对率和平均用几次猜对。`, `No ${dz ? dz + ' ' : ''}games yet. Play some single chords and this shows your solve rate and average tries for each chord type.`)}</div>`; return; }
@@ -1700,9 +1748,10 @@ $('statsDlg').addEventListener('click', e => { if(e.target === $('statsDlg')) $(
 document.querySelectorAll('#statsTabs button').forEach(b => b.onclick = () => { statsTab = b.dataset.t; renderStats(); });
 document.querySelectorAll('#statsDiffs button').forEach(b => b.onclick = () => { statsDiff = b.dataset.d; renderStats(); });
 $('statsReset').onclick = () => {
-  if(!confirm(statsTab === 'single' ? L('清空单个和弦的统计？', 'Clear single-chord stats?') : L('清空和弦进行的统计？', 'Clear progression stats?'))) return;
+  if(!confirm(statsTab === 'single' ? L('清空单个和弦的统计？', 'Clear single-chord stats?') : statsTab === 'interval' ? L('清空猜音程的统计？', 'Clear interval stats?') : L('清空和弦进行的统计？', 'Clear progression stats?'))) return;
   byDiff[statsTab] = {}; store.set('statsByDiff', byDiff);
-  if(statsTab === 'single'){ Object.keys(typeStats).forEach(k => delete typeStats[k]); store.set('typeStats', typeStats); }
+  if(statsTab === 'interval'){ Object.keys(intTypeStats).forEach(k => delete intTypeStats[k]); store.set('intTypeStats', intTypeStats); Object.assign(istats, {played:0, won:0, streak:0, best:0}); store.set('istats', istats); }
+  else if(statsTab === 'single'){ Object.keys(typeStats).forEach(k => delete typeStats[k]); store.set('typeStats', typeStats); }
   else { Object.assign(progStats, {played:0, won:0, streak:0, best:0, dist:[0,0,0,0,0,0,0], rn:{}}); store.set('progStats', progStats); }
   renderStats(); renderHeaderStats();
 };
@@ -1728,7 +1777,7 @@ function others(){
   return VS.room.peers().filter(p => !p.sameTab && p.kind === 'viewer' && p.presence && p.presence.v === 1);
 }
 function hostNextRound(){
-  if(MODE !== 'prog' && !pool().length){ setMsg(L('请至少选一种和弦类型。', 'Pick at least one chord type.'), true); return; }
+  if(MODE === 'single' && !pool().length){ setMsg(L('请至少选一种和弦类型。', 'Pick at least one chord type.'), true); return; }
   VS.round++; VS.seed = Math.floor(Math.random()*2**31);
   if(MODE === 'prog') progNew(VS.seed); else beginRound(VS.seed);
 }
@@ -1765,7 +1814,7 @@ function vsFinish(won){
   if(won){ celebrate(1); fanfare(false); const kb = $('kb'); kb.classList.remove('celebrate'); void kb.offsetWidth; kb.classList.add('celebrate'); }
   $('reward').hidden = true; $('result').classList.toggle('win', won); $('result').classList.remove('milestone');
   $('rName').textContent = chordTitle(chord);
-  $('rNotes').textContent = chordDesc(chord) + ' · ' + chord.notes.map(noteName).join(' ');
+  $('rNotes').textContent = chordDesc(chord) + ' · ' + noteList(chord);
   $('result').hidden = false; $('actBtns').hidden = true;
   renderAll(); vsPublish(); vsCheckRound();
 }
@@ -1936,7 +1985,7 @@ function onRoomPeers(){
   if(!VS.host){
     const h = others().find(p => p.presence.role === 'host');
     const hp = h && h.presence;
-    const hm = hp && (hp.mode === 'prog' ? 'prog' : 'single');
+    const hm = hp && (['prog', 'interval'].includes(hp.mode) ? hp.mode : 'single');
     if(hp && hp.round > 0 && hp.round !== VS.round && typeof hp.seed === 'number'){
       if(DIFF[hp.diff]) diff = hp.diff;
       if(Array.isArray(hp.types)) types = hp.types.filter(id => TYPES.some(t => t.id === id));
@@ -2040,7 +2089,7 @@ try{ loadSamples(); }catch(e){}
     sel.blur();
   });
 }
-const STATIC_EN = {"听一个钢琴和弦，在琴键上找出它。可以单人玩，也可以开房间和朋友对战。": "Hear a piano chord and find it on the keys. Play solo or open a room and challenge friends.", "个人统计": "Your stats", "统计": "Stats", "音色": "Instrument", "查看详细统计": "See detailed stats", "设置": "Settings", "模式": "Mode", "单个和弦": "Single chord", "和弦进行": "Progression", "难度": "Difficulty", "简单": "Easy", "普通": "Normal", "困难": "Hard", "大师": "Master", "和弦类型": "Chord types", "鼠标悬停（手机上长按）可以看每种和弦的色彩听感。": "Hover over a type (long-press on phones) to see what it sounds like.", "全部三和弦": "All triads", "全部七和弦": "All 7ths", "全部色彩和弦": "All colour chords", "全部扩展和弦": "All extended", "全选": "Select all", "取消选择": "Clear", "对战": "Versus", "你的名字": "Your name", "创建房间": "Create room", "4 位房间号": "4-digit code", "房间号": "Room code", "加入": "Join", "房间": "Room", "点击复制房间号": "Click to copy the code", "开始对战": "Start", "离开": "Leave", "积分榜": "Scoreboard", "计分规则": "Scoring", "第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。": "Solving on try 1–6 scores 100, 80, 60, 45, 30 or 20, plus a speed bonus of up to +20 that drops by 1 every 6 seconds. A miss scores 0. The top scorer each round gets a win.", "播放和弦进行": "Play progression", "听主和弦": "Play tonic", "再听一遍": "Play again", "下一题": "Next", "清除": "Clear", "提交": "Submit", "放弃": "Give up", "完全正确": "Exactly right", "根音级数对，和弦性质不对": "Right degree, wrong quality", "不对": "Wrong", "播放和弦": "Play chord", "播放我的选择": "Play my notes", "对手进度": "Opponents", "颜色说明": "Colour key", "音名和位置都对": "Right note, right octave", "音名对，八度不对": "Right note, wrong octave", "不在和弦里": "Not in the chord", "快捷键指南": "Keyboard shortcuts", "关闭": "Close", "单个和弦：琴键（和 GarageBand 的“音乐键入”一样）": "Single chord: piano keys (same as GarageBand’s Musical Typing)", "键位整体降 / 升一个八度（琴键上的字母会跟着移动）": "Shift the keys down / up an octave (the letters on the piano follow)", "选级数和弦，每个按钮右上角标着对应的键": "Pick a chord; each button shows its key in the corner", "两种模式通用": "Both modes", "空格": "Space", "播放题目": "Play the question", "单个和弦：播放我选的音；和弦进行：听主和弦": "Single chord: play my notes · Progression: play the tonic", "提交；结束后进入下一题": "Submit, or go to the next question when done", "删掉最后一个": "Delete the last pick", "全部清除": "Clear all", "重听第几次的猜测": "Replay that guess", "难度：简单 / 普通 / 困难 / 大师": "Difficulty: Easy / Normal / Hard / Master", "切换单个和弦 / 和弦进行": "Switch between single chord and progression", "换下一个音色": "Next instrument", "打开个人统计": "Open your stats", "打开 / 关闭这份指南，": "Open / close this guide;", "关闭弹窗": "closes dialogs", "全部": "All", "玩法": "Play", "单人": "Solo", "统计只保存在这台设备的浏览器里。": "Stats are saved only in this browser.", "清空统计": "Clear stats", "按": "Press", "查看快捷键指南 ·": "for shortcuts ·", "点已提交的行可重听": "Click a submitted row to replay it", "乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）": "Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0)", "中文 / English": "中文 / English"};
+const STATIC_EN = {"听一个钢琴和弦，在琴键上找出它。可以单人玩，也可以开房间和朋友对战。": "Hear a piano chord and find it on the keys. Play solo or open a room and challenge friends.", "个人统计": "Your stats", "统计": "Stats", "音色": "Instrument", "查看详细统计": "See detailed stats", "设置": "Settings", "模式": "Mode", "单个和弦": "Single chord", "和弦进行": "Progression", "难度": "Difficulty", "简单": "Easy", "普通": "Normal", "困难": "Hard", "大师": "Master", "和弦类型": "Chord types", "鼠标悬停（手机上长按）可以看每种和弦的色彩听感。": "Hover over a type (long-press on phones) to see what it sounds like.", "全部三和弦": "All triads", "全部七和弦": "All 7ths", "全部色彩和弦": "All colour chords", "全部扩展和弦": "All extended", "全选": "Select all", "取消选择": "Clear", "对战": "Versus", "你的名字": "Your name", "创建房间": "Create room", "4 位房间号": "4-digit code", "房间号": "Room code", "加入": "Join", "房间": "Room", "点击复制房间号": "Click to copy the code", "开始对战": "Start", "离开": "Leave", "积分榜": "Scoreboard", "计分规则": "Scoring", "第 1–6 次猜对分别得 100、80、60、45、30、20 分，再加速度分：最多 +20，每 6 秒少 1 分。没猜中 0 分。每局得分最高的人记一场胜局。": "Solving on try 1–6 scores 100, 80, 60, 45, 30 or 20, plus a speed bonus of up to +20 that drops by 1 every 6 seconds. A miss scores 0. The top scorer each round gets a win.", "播放和弦进行": "Play progression", "听主和弦": "Play tonic", "再听一遍": "Play again", "下一题": "Next", "清除": "Clear", "提交": "Submit", "放弃": "Give up", "完全正确": "Exactly right", "根音级数对，和弦性质不对": "Right degree, wrong quality", "不对": "Wrong", "播放和弦": "Play chord", "播放我的选择": "Play my notes", "对手进度": "Opponents", "颜色说明": "Colour key", "音名和位置都对": "Right note, right octave", "音名对，八度不对": "Right note, wrong octave", "不在和弦里": "Not in the chord", "快捷键指南": "Keyboard shortcuts", "关闭": "Close", "单个和弦和猜音程：琴键（和 GarageBand 的“音乐键入”一样）": "Single chord and intervals: piano keys (same as GarageBand’s Musical Typing)", "键位整体降 / 升一个八度（琴键上的字母会跟着移动）": "Shift the keys down / up an octave (the letters on the piano follow)", "选级数和弦，每个按钮右上角标着对应的键": "Pick a chord; each button shows its key in the corner", "两种模式通用": "Both modes", "空格": "Space", "播放题目": "Play the question", "单个和弦：播放我选的音；和弦进行：听主和弦": "Single chord: play my notes · Progression: play the tonic", "提交；结束后进入下一题": "Submit, or go to the next question when done", "删掉最后一个": "Delete the last pick", "全部清除": "Clear all", "重听第几次的猜测": "Replay that guess", "难度：简单 / 普通 / 困难 / 大师": "Difficulty: Easy / Normal / Hard / Master", "切换单个和弦 / 和弦进行 / 猜音程": "Cycle single chord / progression / intervals", "猜音程": "Intervals", "换下一个音色": "Next instrument", "打开个人统计": "Open your stats", "打开 / 关闭这份指南，": "Open / close this guide;", "关闭弹窗": "closes dialogs", "全部": "All", "玩法": "Play", "单人": "Solo", "统计只保存在这台设备的浏览器里。": "Stats are saved only in this browser.", "清空统计": "Clear stats", "按": "Press", "查看快捷键指南 ·": "for shortcuts ·", "点已提交的行可重听": "Click a submitted row to replay it", "乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）": "Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0)", "中文 / English": "中文 / English"};
 
 // static markup: translate text nodes and a few attributes by their original Chinese
 const I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'content'];
@@ -2071,7 +2120,7 @@ function applyLang(){
   [...$('instSel').options].forEach(o => { const i = INSTRUMENTS.find(x => x.id === o.value); if(i) o.textContent = L(i.name, i.en); });
   applyMode();
   if(P.seq) progRender();
-  if(chord){ renderGrid(); if(over){ $('rName').textContent = chordTitle(chord); $('rNotes').textContent = chordDesc(chord) + ' · ' + chord.notes.map(noteName).join(' '); } }
+  if(chord){ renderGrid(); if(over){ $('rName').textContent = chordTitle(chord); $('rNotes').textContent = chordDesc(chord) + ' · ' + noteList(chord); } }
   if($('statsDlg').open) renderStats();
   if(VS.room) vsRender();
 }
