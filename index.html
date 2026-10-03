@@ -382,6 +382,10 @@ const TYPES = [
   {id:'ust2',  zh:'上方结构 II', sym:'13♯11', iv:[0,4,10,14,18,21], order:[4,10,14,18,21], g:9, ust:'II 级大三和弦'},
   {id:'ust6',  zh:'上方结构 VI', sym:'13♭9',  iv:[0,4,10,21,25,28], order:[4,10,9,1,4],    g:9, ust:'VI 级大三和弦'},
   {id:'ustb6', zh:'上方结构 ♭VI', sym:'7♯9♭13', iv:[0,4,10,20,24,27], order:[4,10,8,0,3], g:9, ust:'♭VI 级大三和弦'},
+  // fully altered dominant: 3 and ♭7 as guide tones, then ♭9, ♯9 and ♭13 above (no 5th)
+  {id:'alt7',  zh:'变化属和弦', sym:'7alt', iv:[0,4,10,13,15,20], order:[4,10,1,3,8], g:9},
+  // five notes stacked in perfect fourths straight up from the bass (McCoy Tyner / "So What" sound)
+  {id:'quart', zh:'四度叠置', sym:' 四度', chip:'4ths', iv:[0,5,10,15,20], g:9, stack:true},
 ];
 const isExt = id => TYPES.some(t => t.id === id && t.g === 9);
 // which chord types a difficulty can use: colour chords from 普通 up, 9th chords from 困难 up, the other extended chords only in 大师
@@ -621,6 +625,13 @@ function voicingOk(notes, D, altNote, lenient){
 }
 const pool = () => types.filter(id => typeOkId(id, DIFF[diff]));
 function buildExt(D, T){
+  if(T.stack){
+    // a stack of fourths only works in the middle register; lower down it turns to mud
+    const span = T.iv[T.iv.length-1], lo = Math.max(D.lo, 48), choices = [];
+    for(let b = lo; b + span <= D.hi && b < lo + 12; b++) choices.push(b);
+    const bass = choices[rand(choices.length)];
+    return {type:T, rootPc: bass % 12, inv:0, open:false, alt:null, notes: T.iv.map(x => bass + x)};
+  }
   const bass = 36 + rand(12), rootPc = bass % 12;
   const notes = [bass];
   let cur = Math.max(bass + 6, 49);
@@ -1022,12 +1033,13 @@ const FEEL = {
   six:'复古、甜美、轻松，老爵士和摇摆乐味道', min6:'带点异国情调的忧郁，神秘、优雅',
   sus7:'悬浮又有推动力，福音和现代爵士常用', mmaj7:'神秘、阴暗，电影悬疑感（007 的结尾和弦）', six9:'明亮、开放、圆满，爵士常用的结尾',
   ust2:'利底亚色彩，明亮、漂浮、很现代', ust6:'紧张里带着甜，张力很强', ustb6:'黑暗、强烈的 alt 张力，急着要解决',
+  alt7:'最紧张、最“歪”的属和弦，♭9、♯9、♭13 全上，强烈地想解决', quart:'开放、悬浮，听不出大调还是小调，现代爵士的味道',
 };
 const tip = document.createElement('div'); tip.className = 'tip'; tip.setAttribute('role', 'tooltip'); tip.hidden = true;
 document.body.appendChild(tip);
 function showTip(el, t){
   tip.innerHTML = '';
-  const h = document.createElement('b'); h.textContent = t.zh + (t.sym ? ' ' + t.sym : ''); tip.appendChild(h);
+  const h = document.createElement('b'); h.textContent = t.zh + (t.sym ? ' ' + (t.chip || t.sym) : ''); tip.appendChild(h);
   const p = document.createElement('span'); p.textContent = FEEL[t.id] || ''; tip.appendChild(p);
   tip.hidden = false;
   const r = el.getBoundingClientRect(), w = tip.offsetWidth, h2 = tip.offsetHeight;
@@ -1044,7 +1056,7 @@ document.addEventListener('pointerdown', e => { if(!e.target.closest || !e.targe
 TYPES.forEach(t => {
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'chip'; b.dataset.t = t.id; b.id = 'type-'+t.id;
-  b.innerHTML = t.zh + (t.sym ? `<span class="sym">${t.sym}</span>` : '');
+  b.innerHTML = t.zh + (t.sym ? `<span class="sym">${t.chip || t.sym}</span>` : '');
   b.setAttribute('aria-description', FEEL[t.id] || '');
   // mouse: hover shows the feel; touch: long-press shows it without toggling the chip
   b.addEventListener('pointerenter', e => { if(e.pointerType === 'mouse') showTip(b, t); });
