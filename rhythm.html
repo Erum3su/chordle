@@ -473,13 +473,12 @@ function showLatency(){
 }
 
 /* ---------- runs ---------- */
-const CAL_BPM = 50;
 let R = null, raf = 0, lastPass = null;
 function judgeWin(){ return JUDGE[S.judge]; }
 function startRun(kind){
   stopRun(true);
   ac();
-  const beat = 60 / (kind === 'calib' ? CAL_BPM : S.bpm), s32 = beat / 8;
+  const beat = 60 / S.bpm, s32 = beat / 8;
   const out = ctx.createGain(); out.connect(master);
   R = {kind, beat, s32, t0: ctx.currentTime + 0.15, countIn: 4, out,
        passBeats: kind === 'calib' ? 12 : S.bars * 4,
@@ -627,11 +626,13 @@ function showResults(r, k){
 function finishCalib(r){
   const offs = [];
   r.taps.forEach(t => {
-    // slow clicks so a lag of up to ~0.9 s still lands on the right click
-    const b = Math.floor((t - r.t0 + 0.3) / r.beat);
+    // each tap belongs to the click up to `ahead` before it and up to one beat minus that after it,
+    // so at slow tempos a big (Bluetooth) lag still lands on the right click
+    const ahead = Math.min(0.3, r.beat / 2);
+    const b = Math.floor((t - r.t0 + ahead) / r.beat);
     if(b < 2 || b >= r.countIn + r.passBeats) return;
     const d = t - (r.t0 + b * r.beat);
-    if(d > -0.3 && d < r.beat - 0.3) offs.push(d * 1000);
+    if(d >= -ahead && d < r.beat - ahead) offs.push(d * 1000);
   });
   if(offs.length < 6){ $('latNote').textContent = L(`只记到 ${offs.length} 次有效的按键，至少要 6 次。再试一次，听到“嗒”就按。`, `Only ${offs.length} usable taps; need at least 6. Try again and tap with each click.`); return; }
   offs.sort((a, b) => a - b);
@@ -712,7 +713,7 @@ $('btnGo').onclick = () => { if(R && R.kind === 'play') stopRun(); else startRun
 $('btnNew').onclick = () => { if(R) stopRun(true); newPattern(); };
 $('btnCalib').onclick = () => {
   if(R && R.kind === 'calib'){ stopRun(true); return; }
-  $('latNote').textContent = L('先听四下预备拍，然后每听到一下“嗒”就按一次（空格或点下面的方块），一共 12 下。', 'Four count-in clicks, then tap on each of the next 12 clicks (Space or the pad below).');
+  $('latNote').textContent = L('先听四下预备拍，然后每听到一下“嗒”就按一次（空格或点下面的方块），一共 12 下。速度跟上面的“速度”一样；延迟很大（比如蓝牙耳机）时用 60 以下的慢速校准更准。', 'Four count-in clicks, then tap on each of the next 12 clicks (Space or the pad below). It uses the tempo above; for a big lag (Bluetooth) calibrate below 60 BPM.');
   startRun('calib');
 };
 $('langBtn').onclick = () => { LANG = LANG === 'en' ? 'zh' : 'en'; try{ localStorage.setItem('chordle:lang', LANG); }catch(e){} applyLang(); };
