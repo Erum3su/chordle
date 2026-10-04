@@ -427,13 +427,26 @@ function ac(){
   if(ctx.state !== 'running') ctx.resume();
   return ctx;
 }
+// Bright electronic click, well above the woodblock: a short square + sine pair with a noise tick on top.
+// The downbeat is higher and louder.
+let noiseBuf = null;
 function click(t, accent, out){
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.type = 'sine'; o.frequency.value = accent ? 1760 : 1180;
+  const dst = out || master, f = accent ? 2400 : 1600, peak = accent ? 0.9 : 0.6;
+  const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(accent ? 0.55 : 0.32, t + 0.001);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
-  o.connect(g); g.connect(out || master); o.start(t); o.stop(t + 0.06);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.0008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + (accent ? 0.06 : 0.045));
+  g.connect(dst);
+  const sq = ctx.createOscillator(), sqg = ctx.createGain();
+  sq.type = 'square'; sq.frequency.value = f; sqg.gain.value = 0.35;
+  sq.connect(sqg); sqg.connect(g);
+  const si = ctx.createOscillator();
+  si.type = 'sine'; si.frequency.value = f * 1.5; si.connect(g);
+  [sq, si].forEach(o => { o.start(t); o.stop(t + 0.08); });
+  if(!noiseBuf){ noiseBuf = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.01), ctx.sampleRate); const d = noiseBuf.getChannelData(0); for(let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length); }
+  const n = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), ng = ctx.createGain();
+  n.buffer = noiseBuf; hp.type = 'highpass'; hp.frequency.value = 3000; ng.gain.value = accent ? 0.5 : 0.35;
+  n.connect(hp); hp.connect(ng); ng.connect(dst); n.start(t);
 }
 function wood(t, vol, out){
   const o = ctx.createOscillator(), g = ctx.createGain();
