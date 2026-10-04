@@ -172,7 +172,6 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
     </div>
     <div class="row">
       <span class="label" data-t="sound"></span>
-      <div class="seg" id="soundSeg"><button type="button" data-v="guitar" data-t="sGuitar"></button><button type="button" data-v="wood" data-t="sWood"></button></div>
       <div class="toggles">
         <label><input type="checkbox" id="optMetro"> <span data-t="metro"></span></label>
         <label><input type="checkbox" id="optTap"> <span data-t="tapSnd"></span></label>
@@ -216,9 +215,7 @@ const T = {
   cells: ['节奏型', 'Figures'],
   all: ['全选', 'Select all'],
   basic: ['只练四分和八分', 'Quarters and 8ths only'],
-  sound: ['声音', 'Sound'],
-  sGuitar: ['吉他扫弦', 'Guitar strum'],
-  sWood: ['木鱼', 'Woodblock'],
+  sound: ['选项', 'Options'],
   metro: ['节拍器', 'Metronome'],
   tapSnd: ['按键出声', 'Sound on tap'],
   arrows: ['扫弦方向', 'Strum arrows'],
@@ -280,7 +277,7 @@ const BW = {8:54, 4:74, 2:106, 1:172};    // beat width by its shortest note
 // Hit windows in seconds: [on time, close]; each note's window is also capped at half the gap to its neighbours
 const JUDGE = {easy:[0.045, 0.1], normal:[0.03, 0.07], strict:[0.018, 0.045]};
 
-const S = Object.assign({bpm:70, bars:1, judge:'normal', cats:CATS.map(c => c.id), sound:'guitar', metro:true, tap:true, arrows:true, loop:false, lat:0}, store.get('rhythm', {}));
+const S = Object.assign({bpm:70, bars:1, judge:'normal', cats:CATS.map(c => c.id), metro:true, tap:true, arrows:true, loop:false, lat:0}, store.get('rhythm', {}));
 delete S.cells; S.cats = S.cats.filter(id => CATS.some(c => c.id === id));
 const save = () => store.set('rhythm', S);
 let hist = store.get('rhythmHist', []);
@@ -431,25 +428,16 @@ window.addEventListener('resize', () => { const w = $('score').clientWidth; if((
 
 /* ---------- audio ---------- */
 let ctx = null, master = null;
-const GT = {}; let gtLoad = null;
-// Em-ish strum, from the low E string up; each string is pitched from the nearest guitar sample
-const STRINGS = [[40, 41], [47, 47], [52, 53], [55, 56], [59, 59], [64, 65]];
 function ac(){
   if(!ctx){
     const AC = window.AudioContext || window.webkitAudioContext;
     try{ ctx = new AC({latencyHint:'interactive'}); }catch(e){ ctx = new AC(); }
     master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
     try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}
-    loadGuitar();
     showLatency();
   }
   if(ctx.state !== 'running') ctx.resume();
   return ctx;
-}
-function loadGuitar(){
-  if(gtLoad) return gtLoad;
-  const ids = [...new Set(STRINGS.map(s => s[1]))];
-  return gtLoad = Promise.all(ids.map(m => fetch(`/samples/guitar/${m}.mp3`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no))).then(buf => { GT[m] = buf; }))).catch(() => {});
 }
 function click(t, accent, out){
   const o = ctx.createOscillator(), g = ctx.createGain();
@@ -467,18 +455,6 @@ function wood(t, vol, out){
   g.gain.exponentialRampToValueAtTime(0.7 * vol, t + 0.001);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
   o.connect(g); g.connect(out || master); o.start(t); o.stop(t + 0.1);
-}
-function strum(t, down, dur, vol, out){
-  if(S.sound !== 'guitar' || !STRINGS.every(s => GT[s[1]])){ wood(t, vol, out); return; }
-  const set = down ? STRINGS : STRINGS.slice(2).reverse();
-  const gap = Math.min(0.011, dur / 12);
-  set.forEach((s, i) => {
-    const ts = t + i * gap, src = ctx.createBufferSource(), g = ctx.createGain();
-    src.buffer = GT[s[1]]; src.playbackRate.value = Math.pow(2, (s[0] - s[1]) / 12);
-    g.gain.setValueAtTime(0.3 * vol * (down ? 1 : 0.75), ts);
-    g.gain.setTargetAtTime(0, t + dur, 0.018);   // the next strum chokes this one, like a real hand
-    src.connect(g); g.connect(out || master); src.start(ts); src.stop(t + dur + 0.2);
-  });
 }
 // Converts an input event's timestamp to the AudioContext time that was coming out of the speakers then,
 // so output latency is taken out before judging
@@ -510,7 +486,7 @@ function startRun(kind){
   const out = ctx.createGain(); out.connect(master);
   R = {kind, beat, s32, t0: ctx.currentTime + 0.15, countIn: 4, out,
        passBeats: kind === 'calib' ? 12 : S.bars * 4,
-       loop: kind === 'play' && S.loop, next: 0, passes: [], taps: [], shown: -1, dirtyAt: 0, lastStrum: 0};
+       loop: kind === 'play' && S.loop, next: 0, passes: [], taps: [], shown: -1, dirtyAt: 0};
   // per-note windows, capped at half the gap to the neighbouring notes (the pattern repeats, so wrap around)
   const total = S.bars * 32, [wp, wg] = judgeWin();
   const hits = notes.filter(n => !n.tie);
@@ -560,8 +536,7 @@ function schedule(){
     if(inPass && R.kind === 'preview'){
       notes.forEach((n, i) => {
         if(n.beat !== pb || n.tie) return;
-        const dur = n.next != null ? (n.next - n.pos) * R.s32 : 0.6;
-        strum(t + n.inBeat * R.s32, n.down, dur, n.inBeat === 0 ? 1 : 0.8, R.out);
+        wood(t + n.inBeat * R.s32, n.inBeat === 0 ? 1 : 0.8, R.out);
       });
     }
     R.next++;
@@ -606,8 +581,7 @@ function tap(ts){
   const p = (ts && Math.abs(ts - performance.now()) < 2000) ? ts : performance.now();
   if(S.tap && ctx){
     // the tap sound is feedback only; it goes out at once and never affects judging
-    R && (R.lastStrum = (R.lastStrum || 0) + 1);
-    strum(ctx.currentTime, !R || R.lastStrum % 2 === 1, 0.18, 0.55);
+    wood(ctx.currentTime, 0.55);
   }
   const pad = $('pad'); pad.classList.add('hit'); setTimeout(() => pad.classList.remove('hit'), 70);
   if(!R) return;
@@ -729,7 +703,6 @@ $('bpmDown').onclick = () => setBpm(S.bpm - 1);
 $('bpmUp').onclick = () => setBpm(S.bpm + 1);
 segInit('barSeg', 'bars', () => { if(R) stopRun(true); newPattern(); });
 segInit('judgeSeg', 'judge', () => { if(R) stopRun(true); applyLang(); });
-segInit('soundSeg', 'sound', () => { if(S.sound === 'guitar' && ctx) loadGuitar(); });
 [['optMetro', 'metro'], ['optTap', 'tap'], ['optArrows', 'arrows'], ['optLoop', 'loop']].forEach(([id, k]) => {
   $(id).checked = !!S[k];
   $(id).onchange = e => { S[k] = e.target.checked; save(); if(k === 'arrows'){ renderScore(); $('arrowKey').hidden = !S.arrows; } };
