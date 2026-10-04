@@ -182,7 +182,7 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
     <div class="row">
       <span class="label" data-t="latency"></span>
       <div class="lat">
-        <input type="range" id="lat" min="-100" max="300" step="1" aria-label="latency">
+        <input type="range" id="lat" min="-200" max="500" step="1" aria-label="latency">
         <b id="latVal"></b>
         <button type="button" class="btn" id="btnCalib" style="padding:5px 14px" data-t="calib"></button>
       </div>
@@ -477,12 +477,13 @@ function showLatency(){
 }
 
 /* ---------- runs ---------- */
+const CAL_BPM = 50;
 let R = null, raf = 0, lastPass = null;
 function judgeWin(){ return JUDGE[S.judge]; }
 function startRun(kind){
   stopRun(true);
   ac();
-  const beat = 60 / S.bpm, s32 = beat / 8;
+  const beat = 60 / (kind === 'calib' ? CAL_BPM : S.bpm), s32 = beat / 8;
   const out = ctx.createGain(); out.connect(master);
   R = {kind, beat, s32, t0: ctx.currentTime + 0.15, countIn: 4, out,
        passBeats: kind === 'calib' ? 12 : S.bars * 4,
@@ -555,7 +556,7 @@ function frame(){
   }
   const rel = (now - R.t0 - R.countIn * R.beat) / R.s32;
   if(R.kind === 'calib'){
-    if(now > R.t0 + total * R.beat + 0.1) stopRun();
+    if(now > R.t0 + total * R.beat + 0.9) stopRun();
     return;
   }
   const passLen = R.passBeats * 8;
@@ -632,16 +633,17 @@ function showResults(r, k){
 function finishCalib(r){
   const offs = [];
   r.taps.forEach(t => {
-    const b = Math.round((t - r.t0) / r.beat);
+    // slow clicks so a lag of up to ~0.9 s still lands on the right click
+    const b = Math.floor((t - r.t0 + 0.3) / r.beat);
     if(b < 2 || b >= r.countIn + r.passBeats) return;
     const d = t - (r.t0 + b * r.beat);
-    if(Math.abs(d) < r.beat * 0.4) offs.push(d * 1000);
+    if(d > -0.3 && d < r.beat - 0.3) offs.push(d * 1000);
   });
   if(offs.length < 6){ $('latNote').textContent = L(`只记到 ${offs.length} 次有效的按键，至少要 6 次。再试一次，听到“嗒”就按。`, `Only ${offs.length} usable taps; need at least 6. Try again and tap with each click.`); return; }
   offs.sort((a, b) => a - b);
   const med = offs[Math.floor(offs.length / 2)];
   const mad = offs.map(v => Math.abs(v - med)).sort((a, b) => a - b)[Math.floor(offs.length / 2)];
-  S.lat = Math.max(-100, Math.min(300, Math.round(S.lat + med)));
+  S.lat = Math.max(-200, Math.min(500, Math.round(S.lat + med)));
   save(); $('lat').value = S.lat; showLatency();
   $('latNote').textContent = L(`校准好了：补偿 ${S.lat} ms（${offs.length} 次按键，抖动 ±${Math.round(mad)} ms）。`, `Calibrated: ${S.lat} ms (${offs.length} taps, spread ±${Math.round(mad)} ms).`) + (mad > 30 ? L(' 抖动有点大，可以再校准一次。', ' That was a bit uneven; maybe run it again.') : '');
 }
