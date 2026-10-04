@@ -130,6 +130,7 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
     <div class="score" id="score"></div>
     <div class="ctrls">
       <button type="button" class="btn" id="btnPreview"><span data-t="preview"></span><kbd>P</kbd></button>
+      <button type="button" class="btn" id="btnFollow"><span data-t="follow"></span><kbd>G</kbd></button>
       <button type="button" class="btn primary" id="btnGo"><span id="goLab"></span><kbd>⏎</kbd></button>
       <button type="button" class="btn" id="btnNew"><span data-t="next"></span><kbd>N</kbd></button>
     </div>
@@ -215,8 +216,9 @@ const T = {
   lgM: ['漏按', 'Missed'],
   preview: ['试听', 'Listen'],
   next: ['换一条', 'New'],
+  follow: ['跟练', 'Play along'],
   padKeys: ['空格 / F / J，两只手交替按 32 分音符更容易', 'Space / F / J — alternate hands for 32nds'],
-  foot: ['Enter 开始/停止 · P 试听 · N 换一条 · ↑↓ 调速度 · Esc 停止', 'Enter start/stop · P listen · N new · ↑↓ tempo · Esc stop'],
+  foot: ['Enter 开始/停止 · P 试听 · G 跟练（边放边按，不计成绩）· N 换一条 · ↑↓ 调速度 · Esc 停止', 'Enter start/stop · P listen · G play along (rhythm plays, not scored) · N new · ↑↓ tempo · Esc stop'],
 };
 
 const store = {
@@ -486,7 +488,7 @@ function startRun(kind){
   const out = ctx.createGain(); out.connect(master);
   R = {kind, beat, s32, t0: ctx.currentTime + 0.15, countIn: 4, out,
        passBeats: kind === 'calib' ? 12 : S.bars * 4,
-       loop: kind === 'play' && S.loop, next: 0, passes: [], taps: [], shown: -1, dirtyAt: 0};
+       loop: kind === 'follow' || kind === 'play' && S.loop, audible: kind === 'preview' || kind === 'follow', judged: kind === 'play' || kind === 'follow', next: 0, passes: [], taps: [], shown: -1, dirtyAt: 0};
   // per-note windows, capped at half the gap to the neighbouring notes (the pattern repeats, so wrap around)
   const total = S.bars * 32, [wp, wg] = JUDGE;
   const hits = notes.filter(n => !n.tie);
@@ -501,7 +503,7 @@ function startRun(kind){
   schedule();
   R.timer = setInterval(schedule, 25);
   cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
-  if(kind === 'play') hideResults();
+  if(R.judged) hideResults();
   if(kind === 'preview') paintNotes(null);
   updateButtons();
 }
@@ -512,7 +514,8 @@ function stopRun(silent){
   const was = R; R = null;
   cancelAnimationFrame(raf);
   movePlayhead(null); paintBeats(-1, false); $('count').textContent = '';
-  if(was.kind === 'play'){ was.passes.forEach(p => { if(!p.done && heardNow(was) > p.start) finishPass(was, p); }); const p = was.passes.filter(p => p.done).pop(); lastPass = p || null; paintNotes(lastPass); }
+  // a pass cut off by Stop is dropped rather than scored as misses
+  if(was.judged){ was.passes.forEach(p => { if(!p.done && heardNow(was) > p.end) finishPass(was, p); }); const p = was.passes.filter(p => p.done).pop(); lastPass = p || null; paintNotes(lastPass); }
   else paintNotes(null);
   if(was.kind === 'calib' && !silent) finishCalib(was);
   updateButtons();
@@ -527,13 +530,13 @@ function schedule(){
     if(t > horizon) break;
     const inPass = b >= R.countIn, pb = (b - R.countIn) % R.passBeats;
     if(!inPass || S.metro || R.kind === 'calib') click(t, inPass ? pb % 4 === 0 : b === 0, R.out);
-    if(inPass && pb === 0 && R.kind === 'play'){
+    if(inPass && pb === 0 && R.judged){
       const k = (b - R.countIn) / R.passBeats, start = t;
       R.passes.push({k, start, end: start + R.passBeats * R.beat,
         notes: notes.map((n, i) => ({t: start + n.pos * R.s32, perf: R.win[i][0], win: R.win[i][1], res: n.tie ? 'x' : null, off: null})), extra: 0, done: false});
       if(R.passes.length > 4) R.passes.shift();
     }
-    if(inPass && R.kind === 'preview'){
+    if(inPass && R.audible){
       notes.forEach((n, i) => {
         if(n.beat !== pb || n.tie) return;
         wood(t + n.inBeat * R.s32, n.inBeat === 0 ? 1 : 0.8, R.out);
@@ -560,9 +563,9 @@ function frame(){
   }
   const passLen = R.passBeats * 8;
   if(rel >= 0 && (R.loop || rel < passLen)) movePlayhead(rel % passLen); else movePlayhead(null);
+  let on = -1;
+  if(R.audible && rel >= 0 && (R.loop || rel < passLen)) notes.forEach((n, i) => { if(n.pos <= rel % passLen && !n.tie) on = i; });
   if(R.kind === 'preview'){
-    let on = -1;
-    if(rel >= 0 && rel < passLen) notes.forEach((n, i) => { if(n.pos <= rel && !n.tie) on = i; });
     paintNotes(null, on);
     if(rel > passLen + 8) stopRun();
     return;
@@ -571,7 +574,7 @@ function frame(){
   let show = null;
   R.passes.forEach(p => { if(now >= p.start - 0.08) show = p; p.notes.forEach(pn => { if(!pn.res && now > pn.t + pn.win + 0.02) pn.res = 'm'; }); });
   R.passes.forEach(p => { if(!p.done && now > p.end + 0.12) finishPass(R, p); });
-  if(show) paintNotes(show);
+  if(show) paintNotes(show, on);
   if(!R.loop && R.passes.length && R.passes[0].done) stopRun();
 }
 function paintBeats(i, ci){
@@ -585,7 +588,7 @@ function tap(ts){
   if(!R) return;
   const t = heard(p) - S.lat / 1000;
   if(R.kind === 'calib'){ R.taps.push(t); return; }
-  if(R.kind !== 'play') return;
+  if(!R.judged) return;
   let best = null, bd = Infinity;
   R.passes.forEach(ps => { if(ps.done) return; ps.notes.forEach(n => { if(n.res) return; const d = Math.abs(t - n.t); if(d <= n.win && d < bd){ bd = d; best = n; } }); });
   if(best){ best.res = bd <= best.perf ? 'p' : 'g'; best.off = (t - best.t) * 1000; return; }
@@ -601,7 +604,9 @@ function finishPass(r, p){
   const sd = offs.length > 1 ? Math.sqrt(offs.reduce((a, b) => a + (b - mean) ** 2, 0) / offs.length) : 0;
   const acc = Math.max(0, Math.round((P * 100 + G * 60 - p.extra * 30) / N));
   const res = {acc, P, G, M, X: p.extra, mean, sd, bpm: S.bpm};
-  hist.unshift({acc, bpm: S.bpm, ts: Date.now()}); hist = hist.slice(0, 20); store.set('rhythmHist', hist);
+  // follow-along passes are practice with the rhythm playing; they never go into the history
+  if(r.kind === 'play'){ hist.unshift({acc, bpm: S.bpm, ts: Date.now()}); hist = hist.slice(0, 20); store.set('rhythmHist', hist); }
+  res.follow = r.kind === 'follow';
   showResults(res, r.loop ? p.k + 1 : 0);
 }
 function hideResults(){ $('resBox').hidden = true; lastPass = null; }
@@ -610,7 +615,7 @@ function showResults(r, k){
   const ms = v => (v > 0 ? '+' : '') + Math.round(v) + ' ms';
   const stat = (label, val, c) => `<div class="stat"><span>${label}</span><b class="${c || ''}">${val}</b></div>`;
   $('res').innerHTML =
-    stat(k ? L(`第 ${k} 遍得分`, `Pass ${k}`) : L('得分', 'Score'), r.acc + '%', cls) +
+    stat((r.follow ? L('跟练 · ', 'Follow · ') : '') + (k ? L(`第 ${k} 遍`, `Pass ${k}`) : L('得分', 'Score')), r.acc + '%', cls) +
     stat(L('准 / 稍偏 / 漏', 'On / close / miss'), `${r.P}/${r.G}/${r.M}`) +
     stat(L('多按', 'Extra taps'), r.X, r.X ? 'bad' : '') +
     stat(L('平均偏差', 'Avg offset'), (r.P + r.G) ? ms(r.mean) : '–') +
@@ -650,12 +655,13 @@ function finishCalib(r){
 /* ---------- UI ---------- */
 function updateButtons(){
   const live = R && R.kind === 'play';
+  $('btnFollow').querySelector('span').textContent = R && R.kind === 'follow' ? L('停止', 'Stop') : T.follow[LANG === 'en' ? 1 : 0];
   $('goLab').textContent = live ? L('停止', 'Stop') : L('开始', 'Start');
   $('btnPreview').querySelector('span').textContent = R && R.kind === 'preview' ? L('停止', 'Stop') : T.preview[LANG === 'en' ? 1 : 0];
   $('btnCalib').textContent = R && R.kind === 'calib' ? L('停止', 'Stop') : T.calib[LANG === 'en' ? 1 : 0];
-  $('pad').classList.toggle('live', !!(R && (R.kind === 'play' || R.kind === 'calib')));
+  $('pad').classList.toggle('live', !!(R && R.kind !== 'preview'));
   $('padLab').textContent = R && R.kind === 'calib' ? L('听到“嗒”就按这里', 'Tap here on every click')
-    : live ? L('按这里', 'Tap here') : L('点这里开始（先数四拍）', 'Tap here to start (4-beat count-in)');
+    : live || R && R.kind === 'follow' ? L('按这里', 'Tap here') : L('点这里开始（先数四拍）', 'Tap here to start (4-beat count-in)');
 }
 function setBpm(v){
   v = Math.max(40, Math.min(200, Math.round(+v || S.bpm)));
@@ -710,6 +716,7 @@ $('lat').oninput = e => { S.lat = +e.target.value; save(); showLatency(); };
 $('allCells').onclick = () => { S.cats = CATS.map(c => c.id); save(); renderChips(); newPattern(); };
 $('basicCells').onclick = () => { S.cats = []; save(); renderChips(); newPattern(); };
 $('btnPreview').onclick = () => { if(R && R.kind === 'preview') stopRun(); else startRun('preview'); };
+$('btnFollow').onclick = () => { if(R && R.kind === 'follow') stopRun(); else startRun('follow'); };
 $('btnGo').onclick = () => { if(R && R.kind === 'play') stopRun(); else startRun('play'); };
 $('btnNew').onclick = () => { if(R) stopRun(true); newPattern(); };
 $('btnCalib').onclick = () => {
@@ -731,7 +738,7 @@ document.addEventListener('keydown', e => {
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tg = e.target, typing = tg && (tg.tagName === 'INPUT' && tg.type !== 'range' && tg.type !== 'checkbox' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT');
   if(typing) return;
-  const live = R && (R.kind === 'play' || R.kind === 'calib');
+  const live = R && R.kind !== 'preview';
   if(TAPKEYS.has(e.code)){
     e.preventDefault();
     if(e.repeat) return;
@@ -742,6 +749,7 @@ document.addEventListener('keydown', e => {
   if(e.repeat) return;
   if(e.code === 'Enter'){ e.preventDefault(); if(R && R.kind === 'play') stopRun(); else startRun('play'); }
   else if(e.code === 'Escape'){ stopRun(); }
+  else if(e.code === 'KeyG'){ if(R && R.kind === 'follow') stopRun(); else startRun('follow'); }
   else if(e.code === 'KeyP'){ if(R && R.kind === 'preview') stopRun(); else startRun('preview'); }
   else if(e.code === 'KeyN'){ if(R) stopRun(true); newPattern(); }
   else if(e.code === 'ArrowUp' || e.code === 'ArrowDown'){ e.preventDefault(); setBpm(S.bpm + (e.code === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 2)); }
