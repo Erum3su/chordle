@@ -125,7 +125,7 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
   <section class="panel stage">
     <div class="stagehead">
       <div class="beats" id="beats"></div>
-      <div class="legend"><span><i style="background:var(--ok)"></i><span data-t="lgP"></span></span><span><i style="background:var(--near)"></i><span data-t="lgG"></span></span><span><i style="background:var(--bad)"></i><span data-t="lgM"></span></span></div>
+      <div class="legend"><span><i style="background:var(--ok)"></i><span data-t="lgP"></span></span><span><i style="background:var(--near)"></i><span data-t="lgG"></span></span><span><i style="background:var(--bad)"></i><span data-t="lgM"></span></span><span id="arrowKey" data-t="lgArrow"></span></div>
       <div class="count" id="count" aria-live="polite"></div>
     </div>
     <div class="score" id="score"></div>
@@ -228,6 +228,7 @@ const T = {
   lgP: ['准', 'On time'],
   lgG: ['稍偏', 'Close'],
   lgM: ['漏按', 'Missed'],
+  lgArrow: ['↑ 下扫  ↓ 上扫', '↑ down-strum  ↓ up-strum'],
   preview: ['试听', 'Listen'],
   next: ['换一条', 'New'],
   padKeys: ['空格 / F / J，两只手交替按 32 分音符更容易', 'Space / F / J — alternate hands for 32nds'],
@@ -239,48 +240,84 @@ const store = {
   set(k, v){ try{ localStorage.setItem('chordle:' + k, JSON.stringify(v)); }catch(e){} }
 };
 
-// Each figure fills one beat; durations are in 32nd notes (a beat = 8)
-const CELLS = [
-  {id:'q',  zh:'四分',       en:'Quarter',      d:[8]},
-  {id:'e',  zh:'八分',       en:'Two 8ths',     d:[4,4]},
-  {id:'s',  zh:'十六分',     en:'Four 16ths',   d:[2,2,2,2]},
-  {id:'es', zh:'前八后十六', en:'8th + 16ths',  d:[4,2,2]},
-  {id:'se', zh:'前十六后八', en:'16ths + 8th',  d:[2,2,4]},
-  {id:'t',  zh:'三十二分',   en:'Eight 32nds',  d:[1,1,1,1,1,1,1,1]},
-  {id:'te', zh:'前32后八',   en:'32nds + 8th',  d:[1,1,1,1,4]},
-  {id:'et', zh:'前八后32',   en:'8th + 32nds',  d:[4,1,1,1,1]},
+// Strumming patterns written the way real strum charts go (one string per bar, beats separated by spaces).
+// Durations are in 32nd notes (a beat = 8); "t" marks a note tied over from the one before (held, not strummed).
+const BARS = [
+  '8 8 8 8', '8 4,4 8 4,4', '4,4 4,4 4,4 4,4', '8 4,4 4,4 4,4', '8 8 8 4,4',
+  '8 4,4 4t,4 4,4', '4,4 4t,4 4,4 4,4', '8 4,4 4t,4 8',
+  '8 4,2,2 8 4,2,2', '4,2,2 4,2,2 4,2,2 4,2,2', '8 4,2,2 4,2,2 4,2,2', '4,4 4,2,2 4,4 4,2,2', '8 4,4 4,2,2 4,2,2',
+  '8 2,2,4 8 2,2,4', '4,4 2,2,4 4,4 2,2,4', '2,2,4 2,2,4 2,2,4 2,2,4', '8 4,4 2,2,4 4,4',
+  '4,2,2 2,2,4 4,2,2 2,2,4', '8 4,2,2 2,2,4 4,4', '4,4 4,2,2 2,2,4 4,2,2',
+  '2,2,2,2 2,2,2,2 2,2,2,2 2,2,2,2', '8 2,2,2,2 8 2,2,2,2', '4,2,2 2,2,2,2 4,2,2 2,2,2,2', '4,4 2,2,2,2 4,4 2,2,2,2',
+  '8 2,4,2 8 2,4,2', '4,2,2 2,4,2 4,2,2 2,4,2', '4,4 2,4,2 4,4 2,4,2',
+  '4,4 4,2,2 2t,2,4 4,2,2', '8 4,2,2 2t,2,4 4,4', '4,4 4,2,2 2t,2,2,2 2,2,2,2', '4,2,2 4,2,2 2t,2,4 4,2,2',
+  '8 4,2,1,1 8 4,2,1,1', '4,4 4,2,1,1 4,4 4,2,1,1', '4,2,2 4,2,1,1 4,2,2 4,2,1,1', '2,2,4 4,2,1,1 2,2,4 4,2,1,1',
+  '4,4 4,2,2 2t,2,4 4,2,1,1', '4,4 4,2,2 2t,2,2,1,1 2,2,2,2', '8 4,2,2 2t,2,4 4,2,1,1', '4,2,2 2,2,2,1,1 4,2,2 2,2,2,2',
+].map(str => str.split(' ').map(bt => { const xs = bt.split(','); return {d: xs.map(x => parseInt(x)), tie: xs.map(x => x.endsWith('t'))}; }));
+// Figure groups the player can switch on and off; quarters and plain 8ths are always in
+const CATS = [
+  {id:'es',  zh:'前八后十六', en:'8th + 16ths', icon:{d:[4,2,2], tie:[0,0,0]}},
+  {id:'se',  zh:'前十六后八', en:'16ths + 8th', icon:{d:[2,2,4], tie:[0,0,0]}},
+  {id:'s',   zh:'十六分',     en:'16ths',       icon:{d:[2,2,2,2], tie:[0,0,0,0]}},
+  {id:'syn', zh:'切分',       en:'Syncopation', icon:{d:[2,4,2], tie:[0,0,0]}},
+  {id:'t',   zh:'三十二分',   en:'32nds',       icon:{d:[4,2,1,1], tie:[0,0,0,0]}},
 ];
-const CELL = Object.fromEntries(CELLS.map(c => [c.id, c]));
+function barTags(bar){
+  const tags = new Set();
+  bar.forEach(bt => {
+    const k = bt.d.join(',');
+    if(bt.d.includes(1)) tags.add('t');
+    if(bt.tie.some(Boolean) || k === '2,4,2' || bt.d[0] === 4 && bt.tie[0]) tags.add('syn');
+    if(k === '4,2,2' || k === '4,2,1,1') tags.add('es');
+    if(k === '2,2,4') tags.add('se');
+    if(k === '2,2,2,2' || k === '2,2,2,1,1') tags.add('s');
+  });
+  return tags;
+}
+const BAR_TAGS = BARS.map(barTags);
 const LV = {8:0, 4:1, 2:2, 1:3};          // number of beams
 const BW = {8:54, 4:74, 2:106, 1:172};    // beat width by its shortest note
 // Hit windows in seconds: [on time, close]; each note's window is also capped at half the gap to its neighbours
 const JUDGE = {easy:[0.045, 0.1], normal:[0.03, 0.07], strict:[0.018, 0.045]};
 
-const S = Object.assign({bpm:70, bars:1, judge:'normal', cells:CELLS.map(c => c.id), sound:'guitar', metro:true, tap:true, arrows:true, loop:false, lat:0}, store.get('rhythm', {}));
-S.cells = S.cells.filter(id => CELL[id]); if(!S.cells.length) S.cells = CELLS.map(c => c.id);
+const S = Object.assign({bpm:70, bars:1, judge:'normal', cats:CATS.map(c => c.id), sound:'guitar', metro:true, tap:true, arrows:true, loop:false, lat:0}, store.get('rhythm', {}));
+delete S.cells; S.cats = S.cats.filter(id => CATS.some(c => c.id === id));
 const save = () => store.set('rhythm', S);
 let hist = store.get('rhythmHist', []);
 
 /* ---------- pattern ---------- */
-let pat = [], notes = [];
+let pat = [], notes = [], lastKey = '';
 function newPattern(){
-  const n = S.bars * 4, pool = S.cells;
-  let p, tries = 0;
+  const ok = BARS.map((_, i) => i).filter(i => [...BAR_TAGS[i]].every(t => S.cats.includes(t)));
+  // favour bars that use what was picked, so ticking 32nds actually brings 32nds
+  const rich = ok.filter(i => BAR_TAGS[i].size && [...BAR_TAGS[i]].some(t => S.cats.includes(t)));
+  const pick = () => { const pool = rich.length && Math.random() < 0.8 ? rich : ok; return pool[Math.floor(Math.random() * pool.length)]; };
+  let ids, tries = 0;
   do{
-    p = Array.from({length:n}, () => pool[Math.floor(Math.random() * pool.length)]);
+    ids = [pick()];
+    if(S.bars === 2) ids.push(Math.random() < 0.3 ? ids[0] : pick());
     tries++;
-  }while(tries < 30 && ((pool.length > 1 && new Set(p).size < Math.min(2, pool.length)) || p.join() === pat.join()));
-  pat = p;
+  }while(tries < 30 && ids.join() === lastKey);
+  lastKey = ids.join();
+  pat = ids.flatMap(i => BARS[i]);
   notes = [];
-  pat.forEach((cid, bi) => {
-    const c = CELL[cid], has32 = c.d.includes(1), has16 = c.d.includes(2);
-    const grid = has32 ? 1 : has16 ? 2 : 4;
-    let off = 0;
-    c.d.forEach((d, j) => {
-      notes.push({beat:bi, bar:bi >> 2, pos:bi * 8 + off, dur:d, lvl:LV[d], j, inBeat:off, down: Math.floor(off / grid) % 2 === 0});
-      off += d;
+  for(let bar = 0; bar < S.bars; bar++){
+    const bts = pat.slice(bar * 4, bar * 4 + 4);
+    const grid = bts.some(bt => bt.d.some(d => d < 4)) ? 2 : 4;   // 16th feel or 8th feel
+    bts.forEach((bt, k) => {
+      const bi = bar * 4 + k, fine = bt.d.includes(1);
+      let off = 0;
+      bt.d.forEach((d, j) => {
+        const p = k * 8 + off;
+        const down = fine ? p % 2 === 0 : Math.floor(p / grid) % 2 === 0;
+        notes.push({beat:bi, bar, pos:bi * 8 + off, dur:d, lvl:LV[d], j, inBeat:off, down, tie: bt.tie[j]});
+        off += d;
+      });
     });
-  });
+  }
+  // struck notes only: where each one sounds until the next strum
+  const hits = notes.filter(n => !n.tie);
+  hits.forEach((n, i) => { n.next = i + 1 < hits.length ? hits[i + 1].pos : null; n.prevHit = i ? hits[i - 1].pos : null; });
   renderScore();
   hideResults();
 }
@@ -312,7 +349,8 @@ function beatSVG(c, x, w, idx0, opts){
       j = e + 1;
     }
   }
-  if(opts && opts.arrows && idx0 != null) c.d.forEach((d, j) => { const n = notes[idx0 + j]; const a = xs[j].toFixed(1); out.push(n.down ? `<path class="arw" d="M${a} 5V16M${a - 3} 12.5L${a} 16.5L${+a + 3} 12.5"/>` : `<path class="arw" d="M${a} 17V6M${a - 3} 9.5L${a} 5.5L${+a + 3} 9.5"/>`); });
+  // arrows as on Chinese strum charts: a downstroke points up (low string to high), an upstroke points down and is shorter
+  if(opts && opts.arrows && idx0 != null) c.d.forEach((d, j) => { const n = notes[idx0 + j]; if(n.tie) return; const a = xs[j].toFixed(1); out.push(n.down ? `<path class="arw" d="M${a} 17V3M${a - 3} 6.5L${a} 2.5L${+a + 3} 6.5"/>` : `<path class="arw" d="M${a} 6V15M${a - 3} 11.5L${a} 15.5L${+a + 3} 11.5"/>`); });
   return {svg: out.join(''), xs};
 }
 function renderScore(){
@@ -328,11 +366,17 @@ function renderScore(){
       parts.push(`<text class="lanetxt" x="2" y="${LANE - 6}">${L('早', 'early')}</text><text class="lanetxt" x="2" y="${LANE + 11}">${L('晚', 'late')}</text>`);
     }
     for(let bi = s0; bi < s0 + SEG; bi++){
-      const c = CELL[pat[bi]], w = BW[Math.min(...c.d)];
+      const c = pat[bi], w = BW[Math.min(...c.d)];
       const idx0 = notes.findIndex(n => n.beat === bi);
       const r = beatSVG(c, x, w, idx0, {arrows:S.arrows});
       parts.push(r.svg);
-      r.xs.forEach((v, j) => { notes[idx0 + j].x = v; notes[idx0 + j].seg = si; });
+      r.xs.forEach((v, j) => {
+        const n = notes[idx0 + j]; n.x = v; n.seg = si;
+        if(n.tie){
+          const pv = notes[idx0 + j - 1], x1 = pv && pv.seg === si ? pv.x + 4 : v - 22, x2 = v - 4;
+          parts.push(`<path d="M${x1.toFixed(1)} ${LY + 6}Q${((x1 + x2) / 2).toFixed(1)} ${LY + 15} ${x2.toFixed(1)} ${LY + 6}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
+        }
+      });
       parts.push(`<text class="cnt" x="${r.xs[0].toFixed(1)}" y="${LY + 24}" text-anchor="middle">${bi % 4 + 1}</text>`);
       beats.push({x, w});
       x += w;
@@ -349,7 +393,7 @@ function renderScore(){
     svg.setAttribute('viewBox', `0 0 ${W} ${LANE + 22}`);
     svg.setAttribute('width', W); svg.setAttribute('height', LANE + 22);
     svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', pat.slice(s0, s0 + SEG).map(id => L(CELL[id].zh, CELL[id].en)).join(', '));
+    svg.setAttribute('aria-label', L('节奏谱', 'Rhythm'));
     svg.innerHTML = parts.join('');
     box.appendChild(svg);
     segGeo.push({svg, beats, s0});
@@ -469,9 +513,12 @@ function startRun(kind){
        loop: kind === 'play' && S.loop, next: 0, passes: [], taps: [], shown: -1, dirtyAt: 0, lastStrum: 0};
   // per-note windows, capped at half the gap to the neighbouring notes (the pattern repeats, so wrap around)
   const total = S.bars * 32, [wp, wg] = judgeWin();
-  R.win = notes.map((n, i) => {
-    const prev = i ? n.pos - notes[i - 1].pos : n.pos + total - notes[notes.length - 1].pos;
-    const g = Math.min(prev, n.dur) * s32 * 0.5;
+  const hits = notes.filter(n => !n.tie);
+  R.win = notes.map(n => {
+    if(n.tie) return [0, 0];
+    const prev = n.prevHit != null ? n.pos - n.prevHit : n.pos + total - hits[hits.length - 1].pos;
+    const next = (n.next != null ? n.next : hits[0].pos + total) - n.pos;
+    const g = Math.min(prev, next) * s32 * 0.5;
     const w = Math.min(wg, g);
     return [Math.min(wp, w * 0.6), w];
   });
@@ -507,13 +554,13 @@ function schedule(){
     if(inPass && pb === 0 && R.kind === 'play'){
       const k = (b - R.countIn) / R.passBeats, start = t;
       R.passes.push({k, start, end: start + R.passBeats * R.beat,
-        notes: notes.map((n, i) => ({t: start + n.pos * R.s32, perf: R.win[i][0], win: R.win[i][1], res: null, off: null})), extra: 0, done: false});
+        notes: notes.map((n, i) => ({t: start + n.pos * R.s32, perf: R.win[i][0], win: R.win[i][1], res: n.tie ? 'x' : null, off: null})), extra: 0, done: false});
       if(R.passes.length > 4) R.passes.shift();
     }
     if(inPass && R.kind === 'preview'){
       notes.forEach((n, i) => {
-        if(n.beat !== pb) return;
-        const nx = notes[i + 1], dur = nx ? (nx.pos - n.pos) * R.s32 : 0.6;
+        if(n.beat !== pb || n.tie) return;
+        const dur = n.next != null ? (n.next - n.pos) * R.s32 : 0.6;
         strum(t + n.inBeat * R.s32, n.down, dur, n.inBeat === 0 ? 1 : 0.8, R.out);
       });
     }
@@ -540,7 +587,7 @@ function frame(){
   if(rel >= 0 && (R.loop || rel < passLen)) movePlayhead(rel % passLen); else movePlayhead(null);
   if(R.kind === 'preview'){
     let on = -1;
-    if(rel >= 0 && rel < passLen) notes.forEach((n, i) => { if(n.pos <= rel) on = i; });
+    if(rel >= 0 && rel < passLen) notes.forEach((n, i) => { if(n.pos <= rel && !n.tie) on = i; });
     paintNotes(null, on);
     if(rel > passLen + 8) stopRun();
     return;
@@ -576,7 +623,7 @@ function tap(ts){
 function finishPass(r, p){
   p.notes.forEach(n => { if(!n.res) n.res = 'm'; });
   p.done = true;
-  const N = p.notes.length, P = p.notes.filter(n => n.res === 'p').length, G = p.notes.filter(n => n.res === 'g').length, M = N - P - G;
+  const N = p.notes.filter(n => n.res !== 'x').length, P = p.notes.filter(n => n.res === 'p').length, G = p.notes.filter(n => n.res === 'g').length, M = N - P - G;
   const offs = p.notes.filter(n => n.off != null).map(n => n.off);
   const mean = offs.length ? offs.reduce((a, b) => a + b, 0) / offs.length : 0;
   const sd = offs.length > 1 ? Math.sqrt(offs.reduce((a, b) => a + (b - mean) ** 2, 0) / offs.length) : 0;
@@ -649,16 +696,15 @@ function segInit(id, key, after){
 }
 function renderChips(){
   const box = $('chips'); box.innerHTML = '';
-  CELLS.forEach(c => {
-    const w = BW[Math.min(...c.d)];
+  CATS.forEach(c => {
+    const w = BW[Math.min(...c.icon.d)];
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'chip'; b.dataset.id = c.id;
-    b.setAttribute('aria-pressed', S.cells.includes(c.id));
-    b.innerHTML = `<svg viewBox="${-2} ${STEM - 6} ${w + 4} ${LY - STEM + 14}" aria-hidden="true">${beatSVG(c, 0, w, null).svg}</svg><span>${L(c.zh, c.en)}</span>`;
+    b.setAttribute('aria-pressed', S.cats.includes(c.id));
+    b.innerHTML = `<svg viewBox="${-2} ${STEM - 6} ${w + 4} ${LY - STEM + 14}" aria-hidden="true">${beatSVG(c.icon, 0, w, null).svg}</svg><span>${L(c.zh, c.en)}</span>`;
     b.onclick = () => {
-      const on = S.cells.includes(c.id);
-      if(on && S.cells.length === 1) return;
-      S.cells = on ? S.cells.filter(x => x !== c.id) : CELLS.map(x => x.id).filter(x => x === c.id || S.cells.includes(x));
+      const on = S.cats.includes(c.id);
+      S.cats = on ? S.cats.filter(x => x !== c.id) : CATS.map(x => x.id).filter(x => x === c.id || S.cats.includes(x));
       save(); b.setAttribute('aria-pressed', !on);
       if(R) stopRun(true);
       newPattern();
@@ -686,12 +732,13 @@ segInit('judgeSeg', 'judge', () => { if(R) stopRun(true); applyLang(); });
 segInit('soundSeg', 'sound', () => { if(S.sound === 'guitar' && ctx) loadGuitar(); });
 [['optMetro', 'metro'], ['optTap', 'tap'], ['optArrows', 'arrows'], ['optLoop', 'loop']].forEach(([id, k]) => {
   $(id).checked = !!S[k];
-  $(id).onchange = e => { S[k] = e.target.checked; save(); if(k === 'arrows') renderScore(); };
+  $(id).onchange = e => { S[k] = e.target.checked; save(); if(k === 'arrows'){ renderScore(); $('arrowKey').hidden = !S.arrows; } };
 });
 $('lat').value = S.lat;
+$('arrowKey').hidden = !S.arrows;
 $('lat').oninput = e => { S.lat = +e.target.value; save(); showLatency(); };
-$('allCells').onclick = () => { S.cells = CELLS.map(c => c.id); save(); renderChips(); newPattern(); };
-$('basicCells').onclick = () => { S.cells = ['q', 'e']; save(); renderChips(); newPattern(); };
+$('allCells').onclick = () => { S.cats = CATS.map(c => c.id); save(); renderChips(); newPattern(); };
+$('basicCells').onclick = () => { S.cats = []; save(); renderChips(); newPattern(); };
 $('btnPreview').onclick = () => { if(R && R.kind === 'preview') stopRun(); else startRun('preview'); };
 $('btnGo').onclick = () => { if(R && R.kind === 'play') stopRun(); else startRun('play'); };
 $('btnNew').onclick = () => { if(R) stopRun(true); newPattern(); };
