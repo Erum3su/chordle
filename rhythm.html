@@ -157,11 +157,6 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
       <span class="label" data-t="bars"></span>
       <div class="seg" id="barSeg"><button type="button" data-v="1" data-t="bar1"></button><button type="button" data-v="2" data-t="bar2"></button></div>
     </div>
-    <div class="row">
-      <span class="label" data-t="judge"></span>
-      <div class="seg" id="judgeSeg"><button type="button" data-v="easy" data-t="jEasy"></button><button type="button" data-v="normal" data-t="jNormal"></button><button type="button" data-v="strict" data-t="jStrict"></button></div>
-      <span class="diffnote" id="judgeNote"></span>
-    </div>
     <div class="row" style="align-items:flex-start">
       <span class="label" style="padding-top:6px" data-t="cells"></span>
       <div style="flex:1;display:flex;flex-direction:column;gap:6px">
@@ -206,10 +201,6 @@ const T = {
   bars: ['长度', 'Length'],
   bar1: ['1 小节', '1 bar'],
   bar2: ['2 小节', '2 bars'],
-  judge: ['判定', 'Timing'],
-  jEasy: ['宽松', 'Loose'],
-  jNormal: ['标准', 'Normal'],
-  jStrict: ['严格', 'Strict'],
   cells: ['节奏型', 'Figures'],
   all: ['全选', 'Select all'],
   basic: ['只练四分和八分', 'Quarters and 8ths only'],
@@ -271,9 +262,10 @@ const BAR_TAGS = BARS.map(barTags);
 const LV = {8:0, 4:1, 2:2, 1:3};          // number of beams
 const BW = {8:54, 4:74, 2:106, 1:172};    // beat width by its shortest note
 // Hit windows in seconds: [on time, close]; each note's window is also capped at half the gap to its neighbours
-const JUDGE = {easy:[0.045, 0.1], normal:[0.03, 0.07], strict:[0.018, 0.045]};
+const JUDGE = [0.045, 0.1];
 
-const S = Object.assign({bpm:70, bars:1, judge:'normal', cats:CATS.map(c => c.id), metro:true, tap:true, loop:false, lat:0}, store.get('rhythm', {}));
+const S = Object.assign({bpm:70, bars:1, cats:CATS.map(c => c.id), metro:true, tap:true, loop:false, lat:0}, store.get('rhythm', {}));
+delete S.judge;
 delete S.cells; S.cats = S.cats.filter(id => CATS.some(c => c.id === id));
 const save = () => store.set('rhythm', S);
 let hist = store.get('rhythmHist', []);
@@ -404,7 +396,7 @@ function paintNotes(pass, onIdx){
     if(pass) notes.forEach((n, i) => {
       if(n.seg !== si) return;
       const pn = pass.notes[i]; if(pn.off == null) return;
-      const v = Math.max(-1, Math.min(1, pn.off / (JUDGE[S.judge][1] * 1000)));
+      const v = Math.max(-1, Math.min(1, pn.off / (JUDGE[1] * 1000)));
       h += `<circle class="od ${pn.res}" cx="${n.x.toFixed(1)}" cy="${(LANE + v * 13).toFixed(1)}" r="3"/>`;
     });
     g.innerHTML = h;
@@ -474,7 +466,6 @@ function showLatency(){
 
 /* ---------- runs ---------- */
 let R = null, raf = 0, lastPass = null;
-function judgeWin(){ return JUDGE[S.judge]; }
 function startRun(kind){
   stopRun(true);
   ac();
@@ -484,7 +475,7 @@ function startRun(kind){
        passBeats: kind === 'calib' ? 12 : S.bars * 4,
        loop: kind === 'play' && S.loop, next: 0, passes: [], taps: [], shown: -1, dirtyAt: 0};
   // per-note windows, capped at half the gap to the neighbouring notes (the pattern repeats, so wrap around)
-  const total = S.bars * 32, [wp, wg] = judgeWin();
+  const total = S.bars * 32, [wp, wg] = JUDGE;
   const hits = notes.filter(n => !n.tie);
   R.win = notes.map(n => {
     if(n.tie) return [0, 0];
@@ -688,8 +679,6 @@ function applyLang(){
   document.title = L('节奏训练 · Chordle', 'Rhythm · Chordle');
   document.querySelectorAll('[data-t]').forEach(el => { const v = T[el.dataset.t]; if(v) el.textContent = v[LANG === 'en' ? 1 : 0]; });
   $('langBtn').textContent = LANG === 'en' ? '中文' : 'EN';
-  const [wp, wg] = judgeWin();
-  $('judgeNote').textContent = L(`±${wp * 1000} ms 内算准，±${wg * 1000} ms 内算稍偏`, `±${wp * 1000} ms is on time, ±${wg * 1000} ms is close`);
   renderChips(); renderScore(); showLatency(); updateButtons();
 }
 
@@ -699,7 +688,6 @@ $('bpmRange').oninput = e => setBpm(e.target.value);
 $('bpmDown').onclick = () => setBpm(S.bpm - 1);
 $('bpmUp').onclick = () => setBpm(S.bpm + 1);
 segInit('barSeg', 'bars', () => { if(R) stopRun(true); newPattern(); });
-segInit('judgeSeg', 'judge', () => { if(R) stopRun(true); applyLang(); });
 [['optMetro', 'metro'], ['optTap', 'tap'], ['optLoop', 'loop']].forEach(([id, k]) => {
   $(id).checked = !!S[k];
   $(id).onchange = e => { S[k] = e.target.checked; save(); };
