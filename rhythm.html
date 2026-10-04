@@ -88,7 +88,6 @@ h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;c
 .nh.m{fill:var(--bad)}
 .ph{stroke:var(--sel);stroke-width:2;opacity:.7}
 .od.p{fill:var(--ok)} .od.g{fill:var(--near)}
-.arw{fill:none;stroke:var(--muted);stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
 .cnt{fill:var(--muted);font-size:10px;font-family:var(--mono)}
 .lane{stroke:var(--line);stroke-width:1}
 .lanetxt{fill:var(--muted);font-size:9px;font-family:var(--body)}
@@ -125,7 +124,7 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
   <section class="panel stage">
     <div class="stagehead">
       <div class="beats" id="beats"></div>
-      <div class="legend"><span><i style="background:var(--ok)"></i><span data-t="lgP"></span></span><span><i style="background:var(--near)"></i><span data-t="lgG"></span></span><span><i style="background:var(--bad)"></i><span data-t="lgM"></span></span><span id="arrowKey" data-t="lgArrow"></span></div>
+      <div class="legend"><span><i style="background:var(--ok)"></i><span data-t="lgP"></span></span><span><i style="background:var(--near)"></i><span data-t="lgG"></span></span><span><i style="background:var(--bad)"></i><span data-t="lgM"></span></span></div>
       <div class="count" id="count" aria-live="polite"></div>
     </div>
     <div class="score" id="score"></div>
@@ -175,7 +174,6 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
       <div class="toggles">
         <label><input type="checkbox" id="optMetro"> <span data-t="metro"></span></label>
         <label><input type="checkbox" id="optTap"> <span data-t="tapSnd"></span></label>
-        <label><input type="checkbox" id="optArrows"> <span data-t="arrows"></span></label>
         <label><input type="checkbox" id="optLoop"> <span data-t="loop"></span></label>
       </div>
     </div>
@@ -218,14 +216,12 @@ const T = {
   sound: ['选项', 'Options'],
   metro: ['节拍器', 'Metronome'],
   tapSnd: ['按键出声', 'Sound on tap'],
-  arrows: ['扫弦方向', 'Strum arrows'],
   loop: ['循环练习', 'Loop'],
   latency: ['延迟补偿', 'Latency'],
   calib: ['校准', 'Calibrate'],
   lgP: ['准', 'On time'],
   lgG: ['稍偏', 'Close'],
   lgM: ['漏按', 'Missed'],
-  lgArrow: ['↑ 下扫  ↓ 上扫', '↑ down-strum  ↓ up-strum'],
   preview: ['试听', 'Listen'],
   next: ['换一条', 'New'],
   padKeys: ['空格 / F / J，两只手交替按 32 分音符更容易', 'Space / F / J — alternate hands for 32nds'],
@@ -277,7 +273,7 @@ const BW = {8:54, 4:74, 2:106, 1:172};    // beat width by its shortest note
 // Hit windows in seconds: [on time, close]; each note's window is also capped at half the gap to its neighbours
 const JUDGE = {easy:[0.045, 0.1], normal:[0.03, 0.07], strict:[0.018, 0.045]};
 
-const S = Object.assign({bpm:70, bars:1, judge:'normal', cats:CATS.map(c => c.id), metro:true, tap:true, arrows:true, loop:false, lat:0}, store.get('rhythm', {}));
+const S = Object.assign({bpm:70, bars:1, judge:'normal', cats:CATS.map(c => c.id), metro:true, tap:true, loop:false, lat:0}, store.get('rhythm', {}));
 delete S.cells; S.cats = S.cats.filter(id => CATS.some(c => c.id === id));
 const save = () => store.set('rhythm', S);
 let hist = store.get('rhythmHist', []);
@@ -300,14 +296,11 @@ function newPattern(){
   notes = [];
   for(let bar = 0; bar < S.bars; bar++){
     const bts = pat.slice(bar * 4, bar * 4 + 4);
-    const grid = bts.some(bt => bt.d.some(d => d < 4)) ? 2 : 4;   // 16th feel or 8th feel
     bts.forEach((bt, k) => {
-      const bi = bar * 4 + k, fine = bt.d.includes(1);
+      const bi = bar * 4 + k;
       let off = 0;
       bt.d.forEach((d, j) => {
-        const p = k * 8 + off;
-        const down = fine ? p % 2 === 0 : Math.floor(p / grid) % 2 === 0;
-        notes.push({beat:bi, bar, pos:bi * 8 + off, dur:d, lvl:LV[d], j, inBeat:off, down, tie: bt.tie[j]});
+        notes.push({beat:bi, bar, pos:bi * 8 + off, dur:d, lvl:LV[d], j, inBeat:off, tie: bt.tie[j]});
         off += d;
       });
     });
@@ -323,7 +316,7 @@ function newPattern(){
 const LY = 62, STEM = 24, LANE = 112;
 const NS = 'http://www.w3.org/2000/svg';
 let segGeo = [], SEG = 4;   // the score is drawn in rows of SEG beats (2 on narrow screens)
-function beatSVG(c, x, w, idx0, opts){
+function beatSVG(c, x, w, idx0){
   // returns svg markup for one beat starting at x
   const xs = [], out = [];
   let off = 0;
@@ -346,8 +339,6 @@ function beatSVG(c, x, w, idx0, opts){
       j = e + 1;
     }
   }
-  // arrows as on Chinese strum charts: a downstroke points up (low string to high), an upstroke points down and is shorter
-  if(opts && opts.arrows && idx0 != null) c.d.forEach((d, j) => { const n = notes[idx0 + j]; if(n.tie) return; const a = xs[j].toFixed(1); out.push(n.down ? `<path class="arw" d="M${a} 17V3M${a - 3} 6.5L${a} 2.5L${+a + 3} 6.5"/>` : `<path class="arw" d="M${a} 6V15M${a - 3} 11.5L${a} 15.5L${+a + 3} 11.5"/>`); });
   return {svg: out.join(''), xs};
 }
 function renderScore(){
@@ -365,7 +356,7 @@ function renderScore(){
     for(let bi = s0; bi < s0 + SEG; bi++){
       const c = pat[bi], w = BW[Math.min(...c.d)];
       const idx0 = notes.findIndex(n => n.beat === bi);
-      const r = beatSVG(c, x, w, idx0, {arrows:S.arrows});
+      const r = beatSVG(c, x, w, idx0);
       parts.push(r.svg);
       r.xs.forEach((v, j) => {
         const n = notes[idx0 + j]; n.x = v; n.seg = si;
@@ -384,11 +375,11 @@ function renderScore(){
     parts.unshift(`<line class="lane" x1="${first ? 30 : 0}" x2="${x}" y1="${LANE}" y2="${LANE}" stroke-dasharray="2 3"/>`);
     if(barEnd) parts.push(`<rect x="${x - 1}" y="${LY - 14}" width="1.3" height="28" fill="currentColor"/>`);
     if(last) parts.push(`<rect x="${x + 3}" y="${LY - 14}" width="3.4" height="28" fill="currentColor"/>`);
-    parts.push(`<line class="ph" id="ph${si}" x1="0" x2="0" y1="4" y2="${LANE + 14}" visibility="hidden"/>`);
+    parts.push(`<line class="ph" id="ph${si}" x1="0" x2="0" y1="18" y2="${LANE + 14}" visibility="hidden"/>`);
     parts.push(`<g id="ods${si}"></g>`);
     const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', `0 0 ${W} ${LANE + 22}`);
-    svg.setAttribute('width', W); svg.setAttribute('height', LANE + 22);
+    svg.setAttribute('viewBox', `0 14 ${W} ${LANE + 8}`);
+    svg.setAttribute('width', W); svg.setAttribute('height', LANE + 8);
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', L('节奏谱', 'Rhythm'));
     svg.innerHTML = parts.join('');
@@ -705,12 +696,11 @@ $('bpmDown').onclick = () => setBpm(S.bpm - 1);
 $('bpmUp').onclick = () => setBpm(S.bpm + 1);
 segInit('barSeg', 'bars', () => { if(R) stopRun(true); newPattern(); });
 segInit('judgeSeg', 'judge', () => { if(R) stopRun(true); applyLang(); });
-[['optMetro', 'metro'], ['optTap', 'tap'], ['optArrows', 'arrows'], ['optLoop', 'loop']].forEach(([id, k]) => {
+[['optMetro', 'metro'], ['optTap', 'tap'], ['optLoop', 'loop']].forEach(([id, k]) => {
   $(id).checked = !!S[k];
-  $(id).onchange = e => { S[k] = e.target.checked; save(); if(k === 'arrows'){ renderScore(); $('arrowKey').hidden = !S.arrows; } };
+  $(id).onchange = e => { S[k] = e.target.checked; save(); };
 });
 $('lat').value = S.lat;
-$('arrowKey').hidden = !S.arrows;
 $('lat').oninput = e => { S.lat = +e.target.value; save(); showLatency(); };
 $('allCells').onclick = () => { S.cats = CATS.map(c => c.id); save(); renderChips(); newPattern(); };
 $('basicCells').onclick = () => { S.cats = []; save(); renderChips(); newPattern(); };
