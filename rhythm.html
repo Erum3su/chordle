@@ -387,7 +387,12 @@ function renderScore(){
     segGeo.push({svg, beats, s0});
   }
 }
+let paintSig = '', paintEl = null;
 function paintNotes(pass, onIdx){
+  // runs every animation frame during a run; only touch the DOM when something changed so taps are never held up
+  const sig = (pass ? pass.start + ':' + pass.notes.map(n => n.res || '-').join('') : '') + '|' + onIdx + '|' + notes.length + '|' + segGeo.length;
+  if(sig === paintSig && document.getElementById('nh0') === paintEl) return;
+  paintSig = sig; paintEl = document.getElementById('nh0');
   notes.forEach((n, i) => {
     const el = $('nh' + i); if(!el) return;
     const r = pass ? pass.notes[i].res : null;
@@ -571,10 +576,8 @@ function paintBeats(i, ci){
 }
 function tap(ts){
   const p = (ts && Math.abs(ts - performance.now()) < 2000) ? ts : performance.now();
-  if(S.tap && ctx){
-    // the tap sound is feedback only; it goes out at once and never affects judging
-    wood(ctx.currentTime, 0.55);
-  }
+  // the tap sound is feedback only; it goes out first, before any other work, and never affects judging
+  if(S.tap && ctx) wood(ctx.currentTime, 0.55);
   const pad = $('pad'); pad.classList.add('hit'); setTimeout(() => pad.classList.remove('hit'), 70);
   if(!R) return;
   const t = heard(p) - S.lat / 1000;
@@ -713,6 +716,7 @@ $('btnCalib').onclick = () => {
   startRun('calib');
 };
 $('langBtn').onclick = () => { LANG = LANG === 'en' ? 'zh' : 'en'; try{ localStorage.setItem('chordle:lang', LANG); }catch(e){} applyLang(); };
+['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => ac(), {capture:true, once:true}));
 $('pad').addEventListener('pointerdown', e => {
   e.preventDefault();
   if(e.button > 0) return;
