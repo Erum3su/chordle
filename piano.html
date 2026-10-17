@@ -196,6 +196,7 @@ const INSTRUMENTS = [
   {id:'nylon',   name:'尼龙吉他', en:'Nylon guitar', rel:0.12, notes:[35, 38, 42, 45, 49, 52, 55, 59, 63, 66, 69, 73, 76, 79, 82]},
   {id:'eguitar', name:'电吉他', en:'Electric guitar', rel:0.1, notes:[37, 40, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
   {id:'synth',   name:'合成器', en:'Synth pad', rel:0.25, synth:padNote},
+  {id:'rock',    name:'摇滚风琴', en:'Rock organ', rel:0.03, synth:hammondNote, bus:organBus},
   {id:'organ',   name:'风琴', en:'Organ', rel:0.05, gain:0.9, notes:[33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
   {id:'harp',    name:'竖琴', en:'Harp', rel:0.3, notes:[35, 38, 41, 45, 48, 52, 55, 59, 62, 65, 69, 72, 76, 79, 83, 86]},
   {id:'strings', name:'弦乐', en:'Strings', rel:0.18, notes:[36, 39, 43, 46, 49, 52, 55, 60, 64, 67, 72, 76, 79, 84, 88]},
@@ -221,6 +222,52 @@ function epianoNote(a, m, vel){
   const srcs = [car, mod, tine, lfo];
   srcs.forEach(o => { o.start(t); o.stop(t + decay * 4); });
   return {srcs, out};
+}
+// Rock organ in the Deep Purple manner: tonewheel-style sine drawbars (16' 5⅓' 8' 4' 2⅔' 2'),
+// a key click and a fast-decaying 2⅔' percussion; the shared bus below adds the overdrive and the Leslie.
+function hammondNote(a, m){
+  const f = 440 * Math.pow(2, (m - 69) / 12), t = a.currentTime, out = a.createGain();
+  out.gain.value = 0.11;
+  const srcs = [[0.5, 1], [1.5, 1], [1, 1], [2, 0.55], [3, 0.3], [4, 0.3]].filter(([r]) => f * r < 12000).map(([r, lvl]) => {
+    const o = a.createOscillator(), og = a.createGain();
+    o.frequency.value = f * r; og.gain.value = lvl;
+    o.connect(og); og.connect(out); o.start(t); o.stop(t + 60);
+    return o;
+  });
+  const p = a.createOscillator(), pg = a.createGain();
+  p.frequency.value = f * 3;
+  pg.gain.setValueAtTime(0.9, t); pg.gain.setTargetAtTime(0, t, 0.09);
+  p.connect(pg); pg.connect(out); p.start(t); p.stop(t + 1);
+  const ck = a.createOscillator(), cg = a.createGain();
+  ck.type = 'square'; ck.frequency.value = 2200 + Math.random() * 800;
+  cg.gain.setValueAtTime(0.25, t); cg.gain.setTargetAtTime(0, t, 0.004);
+  ck.connect(cg); cg.connect(out); ck.start(t); ck.stop(t + 0.05);
+  return {srcs:[...srcs, p, ck], out};
+}
+// overdriven preamp into a fast-spinning Leslie: pitch wobble, swelling volume and side-to-side sweep, then a speaker-cabinet roll-off
+let organIn = null;
+function organBus(a){
+  if(organIn) return organIn;
+  organIn = a.createGain(); organIn.gain.value = 2.4;
+  const ws = a.createWaveShaper(), n = 1024, curve = new Float32Array(n);
+  for(let i = 0; i < n; i++){ const x = i / (n - 1) * 2 - 1; curve[i] = Math.tanh(x * 2.2) / Math.tanh(2.2); }
+  ws.curve = curve; ws.oversample = '4x';
+  const post = a.createGain(); post.gain.value = 0.32;
+  const lfo = a.createOscillator(); lfo.frequency.value = 6.7;
+  const dl = a.createDelay(0.02); dl.delayTime.value = 0.004;
+  const dg = a.createGain(); dg.gain.value = 0.0011; lfo.connect(dg); dg.connect(dl.delayTime);
+  const trem = a.createGain(); trem.gain.value = 0.85;
+  const tg = a.createGain(); tg.gain.value = 0.15; lfo.connect(tg); tg.connect(trem.gain);
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200; lp.Q.value = 0.7;
+  organIn.connect(ws); ws.connect(post); post.connect(dl); dl.connect(trem);
+  let last = trem;
+  if(a.createStereoPanner){
+    const pan = a.createStereoPanner(), pg = a.createGain(); pg.gain.value = 0.45;
+    lfo.connect(pg); pg.connect(pan.pan); trem.connect(pan); last = pan;
+  }
+  last.connect(lp); lp.connect(master);
+  lfo.start();
+  return organIn;
 }
 function padNote(a, m, vel){
   const f = 440 * Math.pow(2, (m - 69) / 12), t = a.currentTime;
@@ -319,7 +366,7 @@ function noteOn(key, vel){
   }
   const lvl = (i.synth ? 0.9 : 0.55 * vel) * (i.gain || 1);   // the synths already shape their own level from vel
   g.gain.value = lvl;
-  g.connect(master);
+  g.connect(i.bus ? i.bus(a) : master);
   const v = {stop:t => srcs.forEach(o => { try{ o.stop(t); }catch(e){} }), g, lvl, rel:i.rel, done:false};
   srcs[0].onended = () => { if(voices.get(key) === v){ voices.delete(key); paintKey(key); } try{ g.disconnect(); }catch(e){} };
   voices.set(key, v);
