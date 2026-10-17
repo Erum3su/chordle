@@ -135,6 +135,7 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
     <div class="grp toggles">
       <label class="keyhelp"><input type="checkbox" id="optLab"> <span data-t="showKeys"></span></label>
       <label><input type="checkbox" id="optNames"> <span data-t="showNames"></span></label>
+      <label><input type="checkbox" id="optSmart"> <span data-t="smart"></span></label>
     </div>
     <div class="grp">
       <button type="button" class="btn" id="midiBtn"><span data-t="midi"></span></button>
@@ -171,6 +172,7 @@ const T = {
   vol: ['音量', 'Volume'],
   showKeys: ['琴键上显示按键', 'Key labels'],
   showNames: ['显示音名', 'Note names'],
+  smart: ['智能力度', 'Smart velocity'],
   key: ['调', 'Key'],
   midi: ['连接 MIDI 键盘', 'Connect MIDI'],
   help1: ['电脑键盘：下排 Z X C V … / 是白键（Z 是低音 7），A 行 D F H J K ; \' 是黑键；上排 Q W E R … \\ 是白键，数字行是黑键。上排 Q 从高一个八度的 7 开始，指法和下排一样，两排有几个音重叠，加起来不用换八度能弹将近三个八度。', 'Computer keys: bottom row Z X C V … / are white keys (Z is the B below C) with the A row (D F H J K ; \') as black keys; the top row Q W E R … \\ are white keys with the number row as black keys. Q starts on the B an octave above Z with the same shape, so the rows overlap a little and together cover nearly three octaves.'],
@@ -239,7 +241,7 @@ function padNote(a, m, vel){
   return {srcs, out};
 }
 
-const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, names:true, transpose:0, susLen:1.5}, store.get('piano', {}));
+const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, names:true, transpose:0, susLen:1.5, smart:true}, store.get('piano', {}));
 if(!INSTRUMENTS.some(i => i.id === S.inst)){
   const main = (() => { try{ return localStorage.getItem('chordle:inst'); }catch(e){ return null; } })();
   S.inst = INSTRUMENTS.some(i => i.id === main) ? main : 'piano';
@@ -308,7 +310,10 @@ function noteOn(key, vel){
     const src = a.createBufferSource();
     src.buffer = b[s];
     src.playbackRate.value = Math.pow(2, (m - s) / 12);
-    src.connect(g);
+    // a softer touch also sounds darker, as on a real piano
+    const lp = a.createBiquadFilter();
+    lp.type = 'lowpass'; lp.Q.value = 0.5; lp.frequency.value = 900 + 15000 * vel * vel;
+    src.connect(lp); lp.connect(g);
     src.start();
     srcs = [src];
   }
@@ -350,8 +355,44 @@ function damp(m){
 const held = new Map();   // midi -> set of whatever is holding it (pointer, computer key, MIDI)
 let spaceDown = false, midiPedal = false;
 const pedalDown = () => (S.sustain !== spaceDown) || midiPedal;
-function press(m, who, vel){
+// Smart velocity for computer keys and the screen, which cannot sense how hard a key is hit:
+// phrases start moderate after a pause, a rising line builds and a falling one relaxes, fast runs stay even,
+// the top note of what is held sings over the notes under it, extremes of the range are eased, plus a little human wobble.
+const SV = {t:-1e9, m:null, level:0.6, recent:[]};
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+function smartVel(m, hint){
+  const now = performance.now(), dt = now - SV.t;
+  SV.recent = SV.recent.filter(r => now - r.t < 45);
+  const chord = SV.recent.length;   // notes struck together with this one
+  if(dt > 700) SV.level = 0.6;
+  else if(!chord && SV.m != null){
+    SV.level += clamp(m - SV.m, -5, 5) * 0.012;
+    if(dt < 110) SV.level += (0.6 - SV.level) * 0.15;
+  }
+  SV.level = clamp(SV.level, 0.42, 0.9);
+  let v = SV.level;
+  // notes held from before: a note above them sings, one under them accompanies
+  const older = [...held.keys()].filter(k => !SV.recent.some(r => r.m === k));
+  const top = older.length ? Math.max(...older) : -1;
+  if(top >= 0) v += m > top ? 0.06 : -0.1;
+  // within a chord struck together, only its top note is brought out, whatever order the keys landed in
+  const ctop = SV.recent.reduce((a, r) => r.m > a.m ? r : a, {m:-1});
+  if(chord && m > ctop.m){
+    const ov = voices.get(ctop.m);
+    if(ov && !ov.done && !ov.fade){ ov.lvl *= 0.85; ov.g.gain.value = ov.lvl; }
+  }else if(chord) v -= 0.08;
+  v -= 0.03 * Math.min(chord, 4);
+  if(m < 45) v -= 0.06; else if(m > 88) v -= 0.05;
+  v += (hint - 0.7) * 0.5;   // on screen, where the key is touched still counts
+  v += (Math.random() - 0.5) * 0.06;
+  SV.recent.push({t:now, m});
+  SV.m = Math.max(m, ...SV.recent.map(r => r.m));   // a chord's top note carries the line
+  SV.t = now;
+  return clamp(v, 0.25, 1);
+}
+function press(m, who, vel, smart){
   if(m < 21 || m > 108) return;
+  if(smart && S.smart) vel = smartVel(m, vel);
   let h = held.get(m);
   if(!h) held.set(m, h = new Set());
   h.add(who);
@@ -438,7 +479,7 @@ document.addEventListener('keydown', e => {
   if(e.repeat || keyHeld.has(e.code)) return;
   const m = S.base + KEYMAP[e.code];
   keyHeld.set(e.code, m);
-  press(m, e.code, 0.8);
+  press(m, e.code, S.smart ? 0.7 : 0.8, true);
 });
 document.addEventListener('keyup', e => {
   if(e.code === 'Space'){ spaceDown = false; pedalChanged(); return; }
@@ -524,7 +565,7 @@ kb.addEventListener('pointerdown', e => {
   try{ kb.setPointerCapture(e.pointerId); }catch(err){}
   const k = keyAt(e), m = k ? +k.dataset.m : null;
   ptr.set(e.pointerId, m);
-  if(m != null) press(m, 'p' + e.pointerId, velAt(e, k));
+  if(m != null) press(m, 'p' + e.pointerId, velAt(e, k), true);
 });
 // sliding across the keys plays each one, like a glissando
 kb.addEventListener('pointermove', e => {
@@ -533,7 +574,7 @@ kb.addEventListener('pointermove', e => {
   if(m === old) return;
   if(old != null) lift(old, 'p' + e.pointerId);
   ptr.set(e.pointerId, m);
-  if(m != null) press(m, 'p' + e.pointerId, velAt(e, k));
+  if(m != null) press(m, 'p' + e.pointerId, velAt(e, k), true);
 });
 const ptrUp = e => {
   if(!ptr.has(e.pointerId)) return;
@@ -622,6 +663,8 @@ KEYS.forEach((k, i) => { const o = document.createElement('option'); o.value = i
 $('keySel').onchange = e => { const k = +e.target.value; setTranspose(k > 6 ? k - 12 : k); e.target.blur(); };
 $('trDown').onclick = () => setTranspose(S.transpose - 1);
 $('trUp').onclick = () => setTranspose(S.transpose + 1);
+$('optSmart').checked = S.smart;
+$('optSmart').onchange = e => { S.smart = e.target.checked; save(); e.target.blur(); };
 $('optNames').checked = S.names;
 $('optNames').onchange = e => { S.names = e.target.checked; save(); renderKb(); e.target.blur(); };
 function applyLang(){
