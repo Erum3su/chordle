@@ -645,6 +645,34 @@ window.addEventListener('resize', () => { cancelAnimationFrame(rz); rz = request
 
 // ---------- what is sounding ----------
 const PC = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+// The chords the main page knows, plus every 7th-and-up chord without its 5th (C E B = Cmaj7 no5),
+// which Tonal's detector does not name. Order is preference when one note set reads several ways.
+const CHORDS = (() => {
+  const d = [], add = (sym, iv) => d.push({sym, key:[...new Set(iv.map(x => x % 12))].sort((a, b) => a - b).join()});
+  const T = [['', [0,4,7]], ['m', [0,3,7]], ['dim', [0,3,6]], ['aug', [0,4,8]], ['sus2', [0,2,7]], ['sus4', [0,5,7]],
+    ['7', [0,4,7,10]], ['maj7', [0,4,7,11]], ['m7', [0,3,7,10]], ['m7b5', [0,3,6,10]], ['dim7', [0,3,6,9]],
+    ['add9', [0,4,7,14]], ['m(add9)', [0,3,7,14]], ['6', [0,4,7,9]], ['m6', [0,3,7,9]],
+    ['9', [0,4,7,10,14]], ['maj9', [0,4,7,11,14]], ['m9', [0,3,7,10,14]], ['m11', [0,3,7,10,14,17]], ['13', [0,4,7,10,14,21]],
+    ['7sus4', [0,5,7,10]], ['m(maj7)', [0,3,7,11]], ['6/9', [0,4,7,9,14]], ['aug7', [0,4,8,10]], ['augmaj7', [0,4,8,11]],
+    ['7b9', [0,4,7,10,13]], ['7#9', [0,4,7,10,15]], ['7#11', [0,4,7,10,18]], ['7b13', [0,4,7,10,20]], ['maj7#11', [0,4,7,11,18]]];
+  T.forEach(([sym, iv]) => add(sym, iv));
+  // (not the 6 chords: C E A without the 5th is just Am/C)
+  T.forEach(([sym, iv]) => { if(iv.length >= 4 && iv.includes(7) && !sym.startsWith('6') && sym !== 'm6') add(sym + ' no5', iv.filter(x => x !== 7)); });
+  return d;
+})();
+function chordName(ms, pc){
+  const set = [...new Set(ms.map(m => m % 12))], bass = ms[0] % 12;
+  let best = null;
+  set.forEach(root => {
+    const key = set.map(p => (p - root + 12) % 12).sort((a, b) => a - b).join();
+    const i = CHORDS.findIndex(c => c.key === key);
+    if(i < 0) return;
+    const score = (root === bass ? 0 : 1000) + i;   // a reading with its root in the bass wins
+    if(!best || score < best.score) best = {score, root, sym:CHORDS[i].sym};
+  });
+  if(!best) return '';
+  return pc[best.root] + best.sym + (best.root !== bass ? '/' + pc[bass] : '');
+}
 function showNow(){
   const ms = [...held.keys()].sort((a, b) => a - b).map(m => m + S.transpose);
   const box = $('now');
@@ -652,10 +680,14 @@ function showNow(){
   box.classList.remove('old');
   $('noteNames').textContent = ms.map(sn).join(' ') + (S.transpose ? L('（实际音高）', ' (sounding)') : '');
   let name = '';
-  if(ms.length >= 3 && window.Tonal){
+  if(ms.length >= 3){
     const pc = FLATKEY.includes(tonic()) ? ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'] : PC;
-    const pcs = [...new Set(ms.map(m => pc[m % 12]))];
-    try{ name = (Tonal.Chord.detect(pcs)[0] || '').replace(/^([A-G][#b]?)M(?=$|\/)/, '$1').replace(/#/g, '♯').replace(/b/g, '♭'); }catch(e){}
+    name = chordName(ms, pc);
+    if(!name && window.Tonal){
+      const pcs = [...new Set(ms.map(m => pc[m % 12]))];
+      try{ name = (Tonal.Chord.detect(pcs)[0] || '').replace(/^([A-G][#b]?)M(?=$|\/)/, '$1'); }catch(e){}
+    }
+    name = name.replace(/#/g, '♯').replace(/b/g, '♭');
   }else if(ms.length === 2){
     name = L(['同度','小二度','大二度','小三度','大三度','纯四度','三全音','纯五度','小六度','大六度','小七度','大七度'],
              ['unison','minor 2nd','major 2nd','minor 3rd','major 3rd','perfect 4th','tritone','perfect 5th','minor 6th','major 6th','minor 7th','major 7th'])[(ms[1] - ms[0]) % 12];

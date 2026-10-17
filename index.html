@@ -1199,7 +1199,8 @@ const CHORD_DICT = (() => {
   TYPES.forEach(t => {
     add(t.sym, t.zh, t.iv);
     // 7th-and-up chords are often played without the fifth
-    if(t.iv.length >= 4 && t.iv.includes(7) && !t.ust) add(t.sym, t.zh + '（省略五音）', t.iv.filter(x => x !== 7));
+    // (not the 6 chords: C E A without the 5th is just Am/C)
+    if(t.iv.length >= 4 && t.iv.includes(7) && !t.ust && !t.rootOnly && t.id !== 'six9') add(t.sym, t.zh + '（省略五音）', t.iv.filter(x => x !== 7));
   });
   const dom7 = TYPES.find(t => t.id === 'dom7');
   ALTS.forEach(a => {
