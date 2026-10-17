@@ -71,7 +71,7 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .kbrow .btn.sq{height:auto;width:28px;flex:none}
 @media (max-width:600px){.kbrow{gap:4px}.kbrow .btn.sq{width:22px;font-size:.7rem}}
 .kbbox{flex:1;min-width:0}
-.kb{position:relative;height:calc(var(--kw) * 5);max-height:260px;min-height:150px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;
+.kb{position:relative;height:calc(var(--kw) * 4.6);max-height:300px;min-height:150px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;
   border-top:6px solid var(--accent);border-radius:4px 4px 0 0;background:var(--ebony)}
 .kb .k{position:absolute;top:0;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;font-family:var(--mono);line-height:1}
 .kb .w{height:100%;background:var(--ivory);border:1px solid var(--ivory-edge);border-top:0;border-radius:0 0 5px 5px;padding-bottom:7px;color:#77736a}
@@ -91,6 +91,16 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .kb .b{justify-content:space-between;padding-top:7px}
 .kb .nb{font-size:clamp(8px,calc(var(--kw) * .3),12px);opacity:.75;letter-spacing:-.04em;white-space:nowrap}
 .load{font-size:.8rem;color:var(--muted)}
+.arp{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:8px}
+.arpch{display:flex;flex-wrap:wrap;gap:6px}
+.arpch button{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:4px 10px;font:inherit;font-family:var(--display);font-weight:600;font-size:.95rem;cursor:pointer}
+.arpch button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+/* chord-tone markers for the arpeggio practice: 1 red, 3 amber, 5 green, 7 blue */
+.kb .dg{position:absolute;left:50%;transform:translateX(-50%);min-width:clamp(14px,calc(var(--kw) * .7),22px);height:clamp(14px,calc(var(--kw) * .7),22px);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:clamp(8px,calc(var(--kw) * .36),12px);color:#fff;pointer-events:none;box-shadow:0 0 0 2px rgba(255,255,255,.7)}
+.kb .w .dg{top:66%}
+.kb .b .dg{top:34%}
+.kb .dg.d1{background:#c8283f} .kb .dg.d3{background:#d08a00} .kb .dg.d5{background:#2f9a52} .kb .dg.d7{background:#2f6bd8}
 footer{font-size:.78rem;color:var(--muted);text-align:center;line-height:1.7}
 footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--panel)}
 @media (hover:none),(pointer:coarse){.kb .kc{display:none}.keyhelp{display:none}}
@@ -147,6 +157,11 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
   </section>
 
   <section class="panel">
+    <div class="arp">
+      <button type="button" class="btn tog" id="arpBtn" aria-pressed="false"><span data-t="arp"></span></button>
+      <div class="arpch" id="arpCh"></div>
+      <span class="note" id="arpNote"></span>
+    </div>
     <div class="now" id="now" aria-live="polite"><span class="cn" id="chordName"></span><span class="ns" id="noteNames"></span></div>
     <div class="kbrow">
       <button type="button" class="btn sq" id="viewDown" aria-label="◀">◀</button>
@@ -176,6 +191,7 @@ const T = {
   showKeys: ['琴键上显示按键', 'Key labels'],
   showNames: ['显示音名', 'Note names'],
   smart: ['智能力度', 'Smart velocity'],
+  arp: ['秋叶 A 段琶音', 'Autumn Leaves A: arpeggios'],
   key: ['调', 'Key'],
   midi: ['连接 MIDI 键盘', 'Connect MIDI'],
   help1: ['电脑键盘：下排 Z X C V … / 是白键（Z 是低音 7），A 行 D F H J K ; \' 是黑键；上排 Q W E R … \\ 是白键，数字行是黑键。上排 Q 从高一个八度的 7 开始，指法和下排一样，两排有几个音重叠，加起来不用换八度能弹将近三个八度。', 'Computer keys: bottom row Z X C V … / are white keys (Z is the B below C) with the A row (D F H J K ; \') as black keys; the top row Q W E R … \\ are white keys with the number row as black keys. Q starts on the B an octave above Z with the same shape, so the rows overlap a little and together cover nearly three octaves.'],
@@ -264,7 +280,7 @@ function padNote(a, m, vel){
   return {srcs, out};
 }
 
-const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, keyNames:true, transpose:0, susLen:1.5, smart:true}, store.get('piano', {}));
+const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, keyNames:true, transpose:0, susLen:1.5, smart:true, arp:false}, store.get('piano', {}));
 if(!INSTRUMENTS.some(i => i.id === S.inst)){
   const main = (() => { try{ return localStorage.getItem('chordle:inst'); }catch(e){ return null; } })();
   S.inst = INSTRUMENTS.some(i => i.id === main) ? main : 'piano';
@@ -453,6 +469,7 @@ function press(m, who, vel, smart){
   h.add(who);
   noteOn(m, vel);
   paintKey(m); showNow();
+  arpRoot(m);
 }
 function lift(m, who){
   const h = held.get(m);
@@ -553,7 +570,8 @@ const NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const NAMES_B = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
 const nn = m => NAMES[m % 12] + (Math.floor(m / 12) - 1);
 // sounding pitch, spelled with flats in flat keys
-const pcName = m => (FLATKEY.includes(tonic()) ? NAMES_B : NAMES)[(m % 12 + 12) % 12];
+// in the Autumn Leaves practice everything is in G minor / B♭, so flats, except D7's F♯
+const pcName = m => { const p = (m % 12 + 12) % 12; if(S.arp) return p === 6 && ARP[arpI].name === 'D7' ? 'F♯' : NAMES_B[p]; return (FLATKEY.includes(tonic()) ? NAMES_B : NAMES)[p]; };
 const sn = m => (FLATKEY.includes(tonic()) ? NAMES_B : NAMES)[m % 12] + (Math.floor(m / 12) - 1);
 const isBlack = m => [1, 3, 6, 8, 10].includes(m % 12);
 const kb = $('kb');
@@ -563,6 +581,16 @@ const hiOf = (lo, nW) => { let m = lo, w = 1; while(w < nW){ m++; if(!isBlack(m)
 const maxLo = nW => { let lo = 96; while(lo > 24 && hiOf(lo, nW) > 108) lo -= 12; return lo; };
 function fitView(follow){
   const w = kb.clientWidth || 800;
+  // wide screens: just the stretch the computer keys reach, one white key spare at each end, as big as it fits
+  if(w >= 600){
+    let lo = S.base + LOW - 1, hi = Math.min(108, S.base + SPAN + 1);
+    while(isBlack(lo)) lo--;
+    while(isBlack(hi)) hi++;
+    let nW = 0;
+    for(let m = lo; m <= hi; m++) if(!isBlack(m)) nW++;
+    view = {lo, nW};
+    return;
+  }
   let nW = Math.max(8, Math.min(50, Math.floor(w / (w < 600 ? 26 : 25))));
   if(nW >= 15) nW = Math.floor((nW - 1) / 7) * 7 + 1;   // end on a C when there is room for whole octaves
   let lo = view.lo;
@@ -573,31 +601,58 @@ function fitView(follow){
   if(nW < 15 && follow) lo = a;   // narrow screens: start where the bottom row starts
   view = {lo:Math.max(24, Math.min(maxLo(nW), lo)), nW};
 }
+// Autumn Leaves, A section: press any chord's root (by the pitch it sounds) and the keyboard marks that chord's 1 3 5 7 everywhere.
+// The seven roots are all different, so a root alone says which chord is meant.
+const ARP = [
+  {name:'Cm7', root:0, iv:[0, 3, 7, 10]}, {name:'F7', root:5, iv:[0, 4, 7, 10]}, {name:'B♭maj7', root:10, iv:[0, 4, 7, 11]},
+  {name:'E♭maj7', root:3, iv:[0, 4, 7, 11]}, {name:'Am7♭5', root:9, iv:[0, 3, 6, 10]}, {name:'D7', root:2, iv:[0, 4, 7, 10]},
+  {name:'Gm7', root:7, iv:[0, 3, 7, 10]},
+];
+let arpI = 0;
+function arpRoot(m){
+  if(!S.arp) return;
+  const i = ARP.findIndex(c => c.root === (m + S.transpose) % 12);
+  if(i >= 0 && i !== arpI) setArp(i);
+}
+function setArp(i){
+  arpI = i;
+  [...$('arpCh').children].forEach((b, k) => b.setAttribute('aria-pressed', k === i ? 'true' : 'false'));
+  renderKb();
+}
+function showArp(){
+  $('arpBtn').setAttribute('aria-pressed', S.arp ? 'true' : 'false');
+  $('arpCh').hidden = !S.arp;
+  $('arpNote').textContent = S.arp ? L('按任意一个和弦的根音（C F B♭ E♭ A D G），键盘上就标出它的 1 3 5 7；也可以直接点和弦名。', 'Press any chord’s root (C F B♭ E♭ A D G) and the keyboard marks its 1 3 5 7, or tap a chord name.') : '';
+}
+ARP.forEach((c, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = c.name; b.onclick = () => { setArp(i); b.blur(); }; $('arpCh').appendChild(b); });
+$('arpBtn').onclick = () => { S.arp = !S.arp; save(); showArp(); setArp(arpI); };
 function renderKb(){
   const {lo, nW} = view, hi = hiOf(lo, nW);
   const kw = kb.clientWidth / nW;
   kb.style.setProperty('--kw', kw + 'px');
   const inv = {};
   for(const c in KEYMAP) (inv[S.base + KEYMAP[c]] = inv[S.base + KEYMAP[c]] || []).push(KEYLAB(c));   // where the rows overlap a key gets two labels
+  const ch = S.arp ? ARP[arpI] : null;
+  const dg = m => { if(!ch) return ''; const i = ch.iv.indexOf((m + S.transpose - ch.root + 120) % 12); return i < 0 ? '' : `<span class="dg d${'1357'[i]}">${'1357'[i]}</span>`; };
   let html = '', wi = 0;
   for(let m = lo; m <= hi; m++){
     const lab = inv[m] ? `<span class="kc">${inv[m].map(c => c === '\\' ? '&#92;' : c).join('<br>')}</span>` : '';
     const cls = (held.has(m) ? ' on' : '') + (voices.has(m) ? ' ring' : '') + (inv[m] ? ' mapped' : '');
     if(isBlack(m)){
       const bw = kw * 0.62;
-      html += `<div class="k b${cls}" data-m="${m}" style="left:${(wi * kw - bw / 2).toFixed(2)}px;width:${bw.toFixed(2)}px"><span class="nn nb">${pcName(m + S.transpose)}</span>${lab}</div>`;
+      html += `<div class="k b${cls}" data-m="${m}" style="left:${(wi * kw - bw / 2).toFixed(2)}px;width:${bw.toFixed(2)}px"><span class="nn nb">${pcName(m + S.transpose)}</span>${dg(m)}${lab}</div>`;
     }else{
       // names follow the transposition (the pitch the key really sounds); C keeps its octave number and stays labelled even with names off
       const p = m + S.transpose, c = p % 12 === 0;
-      html += `<div class="k w${cls}" data-m="${m}" style="left:${(wi * kw).toFixed(2)}px;width:${kw.toFixed(2)}px">${lab}<span class="nn${c ? ' c' : ''}">${c ? sn(p) : pcName(p)}</span></div>`;
+      html += `<div class="k w${cls}" data-m="${m}" style="left:${(wi * kw).toFixed(2)}px;width:${kw.toFixed(2)}px">${dg(m)}${lab}<span class="nn${c ? ' c' : ''}">${c ? sn(p) : pcName(p)}</span></div>`;
       wi++;
     }
   }
   kb.innerHTML = html;
   kb.classList.toggle('nolab', !S.labels);
   kb.classList.toggle('nonames', !S.keyNames);
-  $('viewDown').disabled = lo <= 24;
-  $('viewUp').disabled = lo >= maxLo(nW);
+  $('viewDown').disabled = lo - 12 < 21;
+  $('viewUp').disabled = hi + 12 > 108;
 }
 function paintKey(m){
   const el = kb.querySelector(`[data-m="${m}"]`);
@@ -643,8 +698,8 @@ kb.addEventListener('pointerup', ptrUp);
 kb.addEventListener('pointercancel', ptrUp);
 kb.addEventListener('lostpointercapture', ptrUp);
 kb.addEventListener('contextmenu', e => e.preventDefault());
-$('viewDown').onclick = () => { view.lo = Math.max(24, view.lo - 12); renderKb(); };
-$('viewUp').onclick = () => { view.lo = Math.min(maxLo(view.nW), view.lo + 12); renderKb(); };
+$('viewDown').onclick = () => { if(view.lo - 12 >= 21){ view.lo -= 12; renderKb(); } };
+$('viewUp').onclick = () => { if(hiOf(view.lo + 12, view.nW) <= 108){ view.lo += 12; renderKb(); } };
 let rz = 0;
 window.addEventListener('resize', () => { cancelAnimationFrame(rz); rz = requestAnimationFrame(() => { fitView(false); renderKb(); }); });
 
@@ -762,14 +817,14 @@ function applyLang(){
   document.querySelectorAll('[data-t]').forEach(el => { const v = T[el.dataset.t]; if(v) el.textContent = v[LANG === 'en' ? 1 : 0]; });
   $('langBtn').textContent = LANG === 'en' ? '中文' : 'EN';
   [...$('instSel').options].forEach(o => { const i = INSTRUMENTS.find(x => x.id === o.value); o.textContent = L(i.name, i.en); });
-  pedalChanged(); showNow(); showSus();
+  pedalChanged(); showNow(); showSus(); showArp();
   if(midiAccess) hookMidi();
 }
 $('langBtn').onclick = () => { LANG = LANG === 'en' ? 'zh' : 'en'; try{ localStorage.setItem('chordle:lang', LANG); }catch(e){} applyLang(); };
 ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, unlock, {capture:true, once:true}));
 
 applyLang();
-showKey(); fitView(true); renderKb(); showRange();
+showKey(); fitView(true); setArp(0); showRange();
 $('chordName').textContent = '';
 $('noteNames').textContent = L('随便按一个键开始', 'Press any key to start');
 // decode the samples right away so the first note plays without a wait
