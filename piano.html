@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>弹钢琴 · Chordle</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#9e2236">
+<meta name="description" content="自由弹钢琴：鼠标、触屏、电脑键盘或 MIDI 键盘都能弹，可开关延音。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<script src="/vendor/tonal.min.js" defer></script>
+<style>
+/* Same tokens as the main Chordle page so the pages read as one site */
+:root{
+  --bg:#eceef2; --panel:#f8f9fb; --fg:#1b1e26; --muted:#646a78; --line:#d4d8e0;
+  --accent:#9e2236; --accent-fg:#ffffff; --sel:#2f6bd8;
+  --ivory:#fbfaf6; --ivory-edge:#c9c6bc; --ebony:#16171b; --ebony-hi:#3a3c44;
+  --display:"Noto Serif SC","Songti SC",Georgia,serif;
+  --body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121419; --panel:#1b1e25; --fg:#e8eaef; --muted:#9aa0ad; --line:#2d313b;
+  --accent:#e05a70; --accent-fg:#1a0b0f; --sel:#5b93f0;
+  --ivory:#ece9e0; --ivory-edge:#8f8b80; --ebony:#0a0a0c; --ebony-hi:#34363d;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121419; --panel:#1b1e25; --fg:#e8eaef; --muted:#9aa0ad; --line:#2d313b;
+  --accent:#e05a70; --accent-fg:#1a0b0f; --sel:#5b93f0;
+  --ivory:#ece9e0; --ivory-edge:#8f8b80; --ebony:#0a0a0c; --ebony-hi:#34363d;
+  color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.55;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:16px;padding-block:18px 32px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:900;font-size:2rem;margin:0;letter-spacing:.01em;line-height:1.1}
+h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;color:var(--muted);letter-spacing:.12em;margin-top:4px}
+.hbtns{display:flex;gap:8px;align-items:center}
+.hbtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:5px 12px;font:inherit;font-size:.85rem;font-weight:500;cursor:pointer;text-decoration:none}
+.hbtn:hover{border-color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.ctl{display:flex;gap:10px 18px;align-items:center;flex-wrap:wrap}
+.grp{display:flex;gap:8px;align-items:center}
+.label{font-size:.75rem;letter-spacing:.12em;color:var(--muted)}
+select{font:inherit;font-size:.9rem;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:6px 14px;font:inherit;font-size:.9rem;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn kbd{font-family:var(--mono);font-size:.7rem;opacity:.6}
+.btn.sq{width:32px;height:32px;padding:0;justify-content:center}
+.btn.tog[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn.tog.pedal{box-shadow:0 0 0 2px var(--accent)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.range{font-family:var(--mono);font-size:.85rem;min-width:5.6em;text-align:center}
+input[type=range]{accent-color:var(--accent);width:110px}
+.toggles label{display:inline-flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer}
+.toggles input{accent-color:var(--accent)}
+.note{font-size:.8rem;color:var(--muted)}
+/* what is sounding */
+.now{display:flex;align-items:baseline;gap:14px;min-height:2.6rem;flex-wrap:wrap;justify-content:center}
+.now .cn{font-family:var(--display);font-weight:900;font-size:1.7rem;line-height:1.2}
+.now .ns{font-family:var(--mono);color:var(--muted);font-size:.95rem}
+.now.old{opacity:.4}
+/* keyboard */
+.kbrow{display:flex;align-items:stretch;gap:6px}
+.kbrow .btn.sq{height:auto;width:28px;flex:none}
+@media (max-width:600px){.kbrow{gap:4px}.kbrow .btn.sq{width:22px;font-size:.7rem}}
+.kbbox{flex:1;min-width:0}
+.kb{position:relative;height:calc(var(--kw) * 5);max-height:260px;min-height:150px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;
+  border-top:6px solid var(--accent);border-radius:4px 4px 0 0;background:var(--ebony)}
+.kb .k{position:absolute;top:0;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;font-family:var(--mono);line-height:1}
+.kb .w{height:100%;background:var(--ivory);border:1px solid var(--ivory-edge);border-top:0;border-radius:0 0 5px 5px;padding-bottom:7px;color:#77736a}
+.kb .b{height:62%;background:linear-gradient(var(--ebony-hi),var(--ebony) 18%);border-radius:0 0 4px 4px;z-index:2;padding-bottom:6px;color:#e6e8ec;box-shadow:inset 0 -3px 0 #000}
+.kb .k span{pointer-events:none;font-weight:700}
+.kb .kc{font-size:clamp(9px,calc(var(--kw) * .36),14px);opacity:.75;margin-bottom:5px}
+.kb .w .kc{color:#4f4c45}
+.kb .nn{font-size:clamp(8px,calc(var(--kw) * .3),12px);opacity:.6}
+.kb .w.on{background:color-mix(in srgb,var(--sel) 45%,var(--ivory));color:#0d2552}
+.kb .b.on{background:var(--sel);box-shadow:none}
+.kb .k.ring:not(.on){box-shadow:inset 0 -5px 0 color-mix(in srgb,var(--accent) 70%,transparent)}
+.kb .w.mapped{background:linear-gradient(var(--ivory) 70%,color-mix(in srgb,var(--sel) 10%,var(--ivory)))}
+.kb .w.mapped.on{background:color-mix(in srgb,var(--sel) 45%,var(--ivory))}
+.kb.nolab .kc{display:none}
+.kb.nonames .nn{display:none}
+.load{font-size:.8rem;color:var(--muted)}
+footer{font-size:.78rem;color:var(--muted);text-align:center;line-height:1.7}
+footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--panel)}
+@media (hover:none),(pointer:coarse){.kb .kc{display:none}.keyhelp{display:none}}
+@media (max-width:480px){h1{font-size:1.6rem}.panel{padding:10px 12px}.ctl{gap:8px 12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span data-t="title"></span><small data-t="sub"></small></h1>
+    <div class="hbtns">
+      <button type="button" class="hbtn" id="langBtn"></button>
+      <a class="hbtn" href="/" data-t="back"></a>
+    </div>
+  </header>
+
+  <section class="panel ctl" aria-label="settings">
+    <div class="grp">
+      <span class="label" data-t="inst"></span>
+      <select id="instSel" aria-label="instrument"></select>
+      <span class="load" id="load"></span>
+    </div>
+    <div class="grp">
+      <button type="button" class="btn tog" id="susBtn" aria-pressed="false"><span id="susLab"></span><kbd class="keyhelp" data-t="susKey"></kbd></button>
+    </div>
+    <div class="grp keyhelp">
+      <span class="label" data-t="kbRange"></span>
+      <button type="button" class="btn sq" id="octDown" aria-label="-">−</button>
+      <span class="range" id="rangeLab"></span>
+      <button type="button" class="btn sq" id="octUp" aria-label="+">+</button>
+    </div>
+    <div class="grp">
+      <span class="label" data-t="vol"></span>
+      <input type="range" id="vol" min="0" max="100" step="1" aria-label="volume">
+    </div>
+    <div class="grp toggles">
+      <label class="keyhelp"><input type="checkbox" id="optLab"> <span data-t="showKeys"></span></label>
+      <label><input type="checkbox" id="optNames"> <span data-t="showNames"></span></label>
+    </div>
+    <div class="grp">
+      <button type="button" class="btn" id="midiBtn"><span data-t="midi"></span></button>
+      <span class="note" id="midiNote"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="now" id="now" aria-live="polite"><span class="cn" id="chordName"></span><span class="ns" id="noteNames"></span></div>
+    <div class="kbrow">
+      <button type="button" class="btn sq" id="viewDown" aria-label="◀">◀</button>
+      <div class="kbbox"><div class="kb" id="kb"></div></div>
+      <button type="button" class="btn sq" id="viewUp" aria-label="▶">▶</button>
+    </div>
+  </section>
+
+  <footer><span class="keyhelp"><span data-t="help1"></span><br><span data-t="help2"></span><br></span><span data-t="credit"></span></footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+let LANG = (() => { try{ const v = localStorage.getItem('chordle:lang'); if(v === 'zh' || v === 'en') return v; }catch(e){} return /^zh/i.test(navigator.language || '') ? 'zh' : 'en'; })();
+const L = (zh, en) => LANG === 'en' ? en : zh;
+
+const T = {
+  title: ['弹钢琴', 'Free play'],
+  sub: ['鼠标、触屏、电脑键盘或 MIDI 键盘都能弹', 'Play with mouse, touch, computer keys or a MIDI keyboard'],
+  back: ['← 猜和弦', '← Chordle'],
+  inst: ['乐器', 'Sound'],
+  susKey: ['空格', 'Space'],
+  kbRange: ['键盘音域', 'Key range'],
+  vol: ['音量', 'Volume'],
+  showKeys: ['琴键上显示按键', 'Key labels'],
+  showNames: ['显示音名', 'Note names'],
+  midi: ['连接 MIDI 键盘', 'Connect MIDI'],
+  help1: ['电脑键盘：下排 Z X C V … / 是白键、A 行 S D G H J L ; 是黑键；上排 Q W E R … \\ 是白键、数字行是黑键。两排连起来不用换八度就能弹三个多八度。', 'Computer keys: bottom row Z X C V … / are white keys with the A row (S D G H J L ;) as black keys; the top row Q W E R … \\ are white keys with the number row as black keys. Together they cover over three octaves with no octave switching.'],
+  help2: ['按住空格 = 踩延音踏板（延音开着时按住空格是暂时松开踏板，清掉余音）· ← → 整体移八度 · Esc 停掉所有声音', 'Hold Space = sustain pedal (with sustain on, holding Space lifts the pedal to clear the ring) · ← → shift by an octave · Esc stops all sound'],
+  credit: ['乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）', 'Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0)'],
+};
+
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('chordle:' + k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem('chordle:' + k, JSON.stringify(v)); }catch(e){} }
+};
+
+// ---------- instruments ----------
+// The same sample sets the main page uses (/samples/<id>/<midi>.mp3); rel is how fast a note dies when the key comes up
+const INSTRUMENTS = [
+  {id:'grand',   name:'音乐会大钢琴', en:'Concert grand', rel:0.09, notes:[30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90]},
+  {id:'guitar',  name:'原声吉他', en:'Acoustic guitar', rel:0.12, notes:[38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74]},
+  {id:'nylon',   name:'尼龙吉他', en:'Nylon guitar', rel:0.12, notes:[35, 38, 42, 45, 49, 52, 55, 59, 63, 66, 69, 73, 76, 79, 82]},
+  {id:'eguitar', name:'电吉他', en:'Electric guitar', rel:0.1, notes:[37, 40, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
+  {id:'organ',   name:'风琴', en:'Organ', rel:0.05, gain:0.9, notes:[33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
+  {id:'harp',    name:'竖琴', en:'Harp', rel:0.3, notes:[35, 38, 41, 45, 48, 52, 55, 59, 62, 65, 69, 72, 76, 79, 83, 86]},
+  {id:'strings', name:'弦乐', en:'Strings', rel:0.18, notes:[36, 39, 43, 46, 49, 52, 55, 60, 64, 67, 72, 76, 79, 84, 88]},
+];
+
+const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, names:true}, store.get('piano', {}));
+if(!INSTRUMENTS.some(i => i.id === S.inst)){
+  const main = (() => { try{ return localStorage.getItem('chordle:inst'); }catch(e){ return null; } })();
+  S.inst = INSTRUMENTS.some(i => i.id === main) ? main : 'grand';
+}
+const save = () => store.set('piano', S);
+let inst = INSTRUMENTS.find(i => i.id === S.inst);
+
+// ---------- audio ----------
+let ctx, master;
+function getCtx(){
+  if(!ctx){
+    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.002;
+    master = ctx.createGain();
+    master.connect(comp); comp.connect(ctx.destination);
+    setVol();
+  }
+  return ctx;
+}
+function setVol(){ if(master) master.gain.value = 0.7 * Math.pow(S.vol / 80, 1.6); }
+// browsers only let audio start from a user gesture
+function unlock(){ const a = getCtx(); if(a.state !== 'running') a.resume(); }
+
+const bufs = {}, loads = {};
+function loadInst(i){
+  if(loads[i.id]) return loads[i.id];
+  const a = getCtx(), b = bufs[i.id] = {};
+  return loads[i.id] = Promise.all(i.notes.map(m => fetch(`/samples/${i.id}/${m}.mp3`)
+    .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+    .then(ab => new Promise(res => a.decodeAudioData(ab, d => { b[m] = d; res(); }, () => res())))
+    .catch(() => {})));
+}
+function setInst(id){
+  inst = INSTRUMENTS.find(i => i.id === id) || INSTRUMENTS[0];
+  S.inst = inst.id; save();
+  $('instSel').value = inst.id;
+  if(Object.keys(bufs[inst.id] || {}).length < inst.notes.length) $('load').textContent = L('加载中…', 'Loading…');
+  loadInst(inst).then(() => { if(inst.id === id) $('load').textContent = ''; });
+}
+
+const voices = new Map();   // midi -> sounding voice
+function noteOn(m, vel){
+  const a = getCtx();
+  if(a.state !== 'running') a.resume();
+  // until the chosen set has decoded, any loaded set stands in so the first notes are not silent
+  let b = bufs[inst.id], i = inst;
+  if(!b || !Object.keys(b).length){
+    i = INSTRUMENTS.find(x => bufs[x.id] && Object.keys(bufs[x.id]).length);
+    if(!i) return;
+    b = bufs[i.id];
+  }
+  let s = null;
+  for(const k in b){ if(s == null || Math.abs(k - m) < Math.abs(s - m)) s = +k; }
+  const old = voices.get(m);
+  if(old) release(old, 0.03);
+  const src = a.createBufferSource(), g = a.createGain();
+  src.buffer = b[s];
+  src.playbackRate.value = Math.pow(2, (m - s) / 12);
+  const lvl = 0.55 * vel * (i.gain || 1);
+  g.gain.value = lvl;
+  src.connect(g); g.connect(master);
+  src.start();
+  const v = {src, g, lvl, rel:i.rel, done:false};
+  src.onended = () => { if(voices.get(m) === v){ voices.delete(m); paintKey(m); } try{ g.disconnect(); }catch(e){} };
+  voices.set(m, v);
+}
+function release(v, tau){
+  if(v.done) return;
+  v.done = true;
+  const t = ctx.currentTime;
+  v.g.gain.cancelScheduledValues(t);
+  v.g.gain.setValueAtTime(v.lvl, t);
+  v.g.gain.setTargetAtTime(0, t, tau);
+  try{ v.src.stop(t + tau * 8); }catch(e){}
+}
+function damp(m){
+  const v = voices.get(m);
+  if(!v) return;
+  release(v, v.rel);
+  voices.delete(m);
+}
+
+// ---------- notes held by fingers / keys, and the pedal ----------
+const held = new Map();   // midi -> set of whatever is holding it (pointer, computer key, MIDI)
+let spaceDown = false, midiPedal = false;
+const pedalDown = () => (S.sustain !== spaceDown) || midiPedal;
+function press(m, who, vel){
+  if(m < 21 || m > 108) return;
+  let h = held.get(m);
+  if(!h) held.set(m, h = new Set());
+  h.add(who);
+  noteOn(m, vel);
+  paintKey(m); showNow();
+}
+function lift(m, who){
+  const h = held.get(m);
+  if(!h || !h.delete(who)) return;
+  if(h.size) return;
+  held.delete(m);
+  if(!pedalDown()) damp(m);
+  paintKey(m); showNow();
+}
+function pedalChanged(){
+  if(!pedalDown()) [...voices.keys()].forEach(m => { if(!held.has(m)){ damp(m); paintKey(m); } });
+  const b = $('susBtn');
+  b.setAttribute('aria-pressed', S.sustain ? 'true' : 'false');
+  b.classList.toggle('pedal', pedalDown());
+  $('susLab').textContent = S.sustain ? L('延音：开', 'Sustain: on') : L('延音：关', 'Sustain: off');
+}
+function allOff(){
+  held.clear();
+  [...voices.keys()].forEach(damp);
+  ptr.clear();
+  renderKb(); showNow();
+}
+
+// ---------- computer keyboard ----------
+// Two rows laid end to end so the keys reach over three octaves without switching:
+// bottom row Z…/ (black keys on the A row) from the base C, top row Q…\ (black keys on the number row) straight after it.
+const LOWER = ['KeyZ','KeyS','KeyX','KeyD','KeyC','KeyV','KeyG','KeyB','KeyH','KeyN','KeyJ','KeyM','Comma','KeyL','Period','Semicolon','Slash'];
+const UPPER = ['KeyQ','Digit2','KeyW','Digit3','KeyE','Digit4','KeyR','KeyT','Digit6','KeyY','Digit7','KeyU','KeyI','Digit9','KeyO','Digit0','KeyP','Minus','BracketLeft','BracketRight','Backspace','Backslash'];
+// the top row starts on F, so its black keys fall exactly on 2 3 4 · 6 7 · 9 0 - · ⌫
+const KEYMAP = {};
+LOWER.forEach((c, i) => KEYMAP[c] = i);
+UPPER.forEach((c, i) => KEYMAP[c] = 17 + i);
+const KEYLAB = c => ({Comma:',', Period:'.', Slash:'/', Semicolon:';', Minus:'-', BracketLeft:'[', BracketRight:']', Backspace:'⌫', Backslash:'\\'})[c] || c.replace(/^Key|^Digit/, '');
+const SPAN = 17 + UPPER.length - 1;
+const BASES = [24, 36, 48, 60, 72];
+const keyHeld = new Map();   // key code -> midi it started, so shifting octaves mid-note still lets it go
+function shiftBase(d){
+  const i = BASES.indexOf(S.base) + d;
+  if(i < 0 || i >= BASES.length) return;
+  S.base = BASES[i]; save();
+  fitView(true); renderKb(); showRange();
+}
+function showRange(){
+  $('rangeLab').textContent = nn(S.base) + '–' + nn(Math.min(108, S.base + SPAN));
+  $('octDown').disabled = S.base === BASES[0];
+  $('octUp').disabled = S.base === BASES[BASES.length - 1];
+}
+document.addEventListener('keydown', e => {
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  if(e.target.closest && e.target.closest('input,select,textarea')) return;
+  if(e.code === 'Space'){
+    e.preventDefault();
+    if(!e.repeat){ unlock(); spaceDown = true; pedalChanged(); }
+    return;
+  }
+  if(e.code === 'ArrowLeft' || e.code === 'ArrowRight'){ e.preventDefault(); shiftBase(e.code === 'ArrowLeft' ? -1 : 1); return; }
+  if(e.code === 'Escape'){ allOff(); return; }
+  if(!(e.code in KEYMAP)) return;
+  e.preventDefault();
+  if(e.repeat || keyHeld.has(e.code)) return;
+  const m = S.base + KEYMAP[e.code];
+  keyHeld.set(e.code, m);
+  press(m, e.code, 0.8);
+});
+document.addEventListener('keyup', e => {
+  if(e.code === 'Space'){ spaceDown = false; pedalChanged(); return; }
+  if(!keyHeld.has(e.code)) return;
+  lift(keyHeld.get(e.code), e.code);
+  keyHeld.delete(e.code);
+});
+// keys held while the window loses focus never send keyup
+window.addEventListener('blur', () => {
+  keyHeld.forEach((m, c) => lift(m, c)); keyHeld.clear();
+  if(spaceDown){ spaceDown = false; pedalChanged(); }
+});
+
+// ---------- on-screen keyboard ----------
+const NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const nn = m => NAMES[m % 12] + (Math.floor(m / 12) - 1);
+const isBlack = m => [1, 3, 6, 8, 10].includes(m % 12);
+const kb = $('kb');
+let view = {lo:36, nW:36};
+// the highest key when nW white keys start at lo
+const hiOf = (lo, nW) => { let m = lo, w = 1; while(w < nW){ m++; if(!isBlack(m)) w++; } return m; };
+const maxLo = nW => { let lo = 96; while(lo > 24 && hiOf(lo, nW) > 108) lo -= 12; return lo; };
+function fitView(follow){
+  const w = kb.clientWidth || 800;
+  let nW = Math.max(8, Math.min(50, Math.floor(w / (w < 600 ? 26 : 25))));
+  if(nW >= 15) nW = Math.floor((nW - 1) / 7) * 7 + 1;   // end on a C when there is room for whole octaves
+  let lo = view.lo;
+  const span = hiOf(0, nW);
+  // keep the computer-key range in view, centred when it does not all fit
+  const a = S.base, z = Math.min(108, S.base + SPAN);
+  if(nW !== view.nW || (follow && (a < lo || z > lo + span))) lo = 12 * Math.round(((a + z) / 2 - span / 2) / 12);
+  if(nW < 15 && follow) lo = a;   // narrow screens: start where the bottom row starts
+  view = {lo:Math.max(24, Math.min(maxLo(nW), lo)), nW};
+}
+function renderKb(){
+  const {lo, nW} = view, hi = hiOf(lo, nW);
+  const kw = kb.clientWidth / nW;
+  kb.style.setProperty('--kw', kw + 'px');
+  const inv = {};
+  for(const c in KEYMAP) inv[S.base + KEYMAP[c]] = KEYLAB(c);
+  let html = '', wi = 0;
+  for(let m = lo; m <= hi; m++){
+    const lab = inv[m] ? `<span class="kc">${inv[m] === '\\' ? '&#92;' : inv[m]}</span>` : '';
+    const cls = (held.has(m) ? ' on' : '') + (voices.has(m) ? ' ring' : '') + (inv[m] ? ' mapped' : '');
+    if(isBlack(m)){
+      const bw = kw * 0.62;
+      html += `<div class="k b${cls}" data-m="${m}" style="left:${(wi * kw - bw / 2).toFixed(2)}px;width:${bw.toFixed(2)}px">${lab}</div>`;
+    }else{
+      const name = m % 12 === 0 ? nn(m) : (S.names && kw > 30 ? nn(m).replace(/\d+$/, '') : '');
+      html += `<div class="k w${cls}" data-m="${m}" style="left:${(wi * kw).toFixed(2)}px;width:${kw.toFixed(2)}px">${lab}<span class="nn">${name}</span></div>`;
+      wi++;
+    }
+  }
+  kb.innerHTML = html;
+  kb.classList.toggle('nolab', !S.labels);
+  kb.classList.toggle('nonames', !S.names);
+  $('viewDown').disabled = lo <= 24;
+  $('viewUp').disabled = lo >= maxLo(nW);
+}
+function paintKey(m){
+  const el = kb.querySelector(`[data-m="${m}"]`);
+  if(!el) return;
+  el.classList.toggle('on', held.has(m));
+  el.classList.toggle('ring', voices.has(m));
+}
+const ptr = new Map();   // pointer id -> midi under it
+function keyAt(e){
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const k = el && el.closest && el.closest('.k');
+  return k && kb.contains(k) ? k : null;
+}
+// harder toward the front edge of the key, like a real one
+function velAt(e, k){
+  const r = k.getBoundingClientRect();
+  return 0.45 + 0.5 * Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+}
+kb.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  unlock();
+  try{ kb.setPointerCapture(e.pointerId); }catch(err){}
+  const k = keyAt(e), m = k ? +k.dataset.m : null;
+  ptr.set(e.pointerId, m);
+  if(m != null) press(m, 'p' + e.pointerId, velAt(e, k));
+});
+// sliding across the keys plays each one, like a glissando
+kb.addEventListener('pointermove', e => {
+  if(!ptr.has(e.pointerId)) return;
+  const k = keyAt(e), m = k ? +k.dataset.m : null, old = ptr.get(e.pointerId);
+  if(m === old) return;
+  if(old != null) lift(old, 'p' + e.pointerId);
+  ptr.set(e.pointerId, m);
+  if(m != null) press(m, 'p' + e.pointerId, velAt(e, k));
+});
+const ptrUp = e => {
+  if(!ptr.has(e.pointerId)) return;
+  const m = ptr.get(e.pointerId);
+  ptr.delete(e.pointerId);
+  if(m != null) lift(m, 'p' + e.pointerId);
+};
+kb.addEventListener('pointerup', ptrUp);
+kb.addEventListener('pointercancel', ptrUp);
+kb.addEventListener('lostpointercapture', ptrUp);
+kb.addEventListener('contextmenu', e => e.preventDefault());
+$('viewDown').onclick = () => { view.lo = Math.max(24, view.lo - 12); renderKb(); };
+$('viewUp').onclick = () => { view.lo = Math.min(maxLo(view.nW), view.lo + 12); renderKb(); };
+let rz = 0;
+window.addEventListener('resize', () => { cancelAnimationFrame(rz); rz = requestAnimationFrame(() => { fitView(false); renderKb(); }); });
+
+// ---------- what is sounding ----------
+const PC = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function showNow(){
+  const ms = [...held.keys()].sort((a, b) => a - b);
+  const box = $('now');
+  if(!ms.length){ box.classList.add('old'); return; }
+  box.classList.remove('old');
+  $('noteNames').textContent = ms.map(nn).join(' ');
+  let name = '';
+  if(ms.length >= 3 && window.Tonal){
+    const pcs = [...new Set(ms.map(m => PC[m % 12]))];
+    try{ name = (Tonal.Chord.detect(pcs)[0] || '').replace(/^([A-G][#b]?)M(?=$|\/)/, '$1').replace(/#/g, '♯').replace(/(?<=[^A-G])b/g, '♭'); }catch(e){}
+  }else if(ms.length === 2){
+    name = L(['同度','小二度','大二度','小三度','大三度','纯四度','三全音','纯五度','小六度','大六度','小七度','大七度'],
+             ['unison','minor 2nd','major 2nd','minor 3rd','major 3rd','perfect 4th','tritone','perfect 5th','minor 6th','major 6th','minor 7th','major 7th'])[(ms[1] - ms[0]) % 12];
+    if(ms[1] - ms[0] >= 12 && (ms[1] - ms[0]) % 12 === 0) name = L('八度', 'octave');
+  }
+  $('chordName').textContent = name;
+}
+
+// ---------- MIDI keyboard ----------
+function onMidi(ev){
+  const [st, d1, d2] = ev.data, type = st & 0xf0;
+  if(type === 0x90 && d2 > 0){ unlock(); press(d1, 'midi', 0.25 + 0.75 * d2 / 127); }
+  else if(type === 0x80 || type === 0x90) lift(d1, 'midi');
+  else if(type === 0xb0 && d1 === 64){ midiPedal = d2 >= 64; pedalChanged(); }
+  else if(type === 0xb0 && (d1 === 120 || d1 === 123)) allOff();
+}
+let midiAccess = null;
+function hookMidi(){
+  const names = [];
+  midiAccess.inputs.forEach(i => { i.onmidimessage = onMidi; names.push(i.name); });
+  $('midiNote').textContent = names.length ? L('已连接：', 'Connected: ') + names.join('、') : L('没找到 MIDI 设备，插上后会自动连上', 'No MIDI device yet; plug one in and it connects');
+}
+$('midiBtn').onclick = () => {
+  if(!navigator.requestMIDIAccess){ $('midiNote').textContent = L('这个浏览器不支持 MIDI，换 Chrome 或 Edge 试试', 'This browser has no MIDI support; try Chrome or Edge'); return; }
+  unlock();
+  navigator.requestMIDIAccess().then(acc => {
+    midiAccess = acc; acc.onstatechange = hookMidi; hookMidi();
+    $('midiBtn').hidden = true;
+  }, () => { $('midiNote').textContent = L('没有拿到 MIDI 权限', 'MIDI access was not allowed'); });
+};
+
+// ---------- settings & language ----------
+INSTRUMENTS.forEach(i => { const o = document.createElement('option'); o.value = i.id; $('instSel').appendChild(o); });
+$('instSel').onchange = e => { setInst(e.target.value); e.target.blur(); };
+$('susBtn').onclick = () => { S.sustain = !S.sustain; save(); pedalChanged(); };
+// clicking a button must not leave it focused, or Space would press it again instead of working the pedal
+document.querySelectorAll('button').forEach(b => b.addEventListener('mouseup', () => b.blur()));
+$('octDown').onclick = () => shiftBase(-1);
+$('octUp').onclick = () => shiftBase(1);
+$('vol').value = S.vol;
+$('vol').oninput = e => { S.vol = +e.target.value; save(); setVol(); };
+$('vol').onchange = e => e.target.blur();
+$('optLab').checked = S.labels;
+$('optLab').onchange = e => { S.labels = e.target.checked; save(); renderKb(); e.target.blur(); };
+$('optNames').checked = S.names;
+$('optNames').onchange = e => { S.names = e.target.checked; save(); renderKb(); e.target.blur(); };
+function applyLang(){
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+  document.title = L('弹钢琴 · Chordle', 'Free play · Chordle');
+  document.querySelectorAll('[data-t]').forEach(el => { const v = T[el.dataset.t]; if(v) el.textContent = v[LANG === 'en' ? 1 : 0]; });
+  $('langBtn').textContent = LANG === 'en' ? '中文' : 'EN';
+  [...$('instSel').options].forEach(o => { const i = INSTRUMENTS.find(x => x.id === o.value); o.textContent = L(i.name, i.en); });
+  pedalChanged(); showNow();
+  if(midiAccess) hookMidi();
+}
+$('langBtn').onclick = () => { LANG = LANG === 'en' ? 'zh' : 'en'; try{ localStorage.setItem('chordle:lang', LANG); }catch(e){} applyLang(); };
+['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, unlock, {capture:true, once:true}));
+
+applyLang();
+fitView(true); renderKb(); showRange();
+$('chordName').textContent = '';
+$('noteNames').textContent = L('随便按一个键开始', 'Press any key to start');
+// decode the samples right away so the first note plays without a wait
+setInst(S.inst);
+})();
+</script>
+</body>
+</html>
