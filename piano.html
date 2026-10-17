@@ -190,21 +190,65 @@ const store = {
 };
 
 // ---------- instruments ----------
-// The same sample sets the main page uses (/samples/<id>/<midi>.mp3); rel is how fast a note dies when the key comes up
+// The same sounds as the main page: sample sets from /samples/<id>/<midi>.mp3, electric piano and synth built from oscillators.
+// rel is how fast a note dies when the key comes up
 const INSTRUMENTS = [
+  {id:'piano',   name:'钢琴', en:'Piano', rel:0.09, notes:[36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
   {id:'grand',   name:'音乐会大钢琴', en:'Concert grand', rel:0.09, notes:[30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90]},
+  {id:'epiano',  name:'电钢琴', en:'Electric piano', rel:0.12, synth:epianoNote},
   {id:'guitar',  name:'原声吉他', en:'Acoustic guitar', rel:0.12, notes:[38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74]},
   {id:'nylon',   name:'尼龙吉他', en:'Nylon guitar', rel:0.12, notes:[35, 38, 42, 45, 49, 52, 55, 59, 63, 66, 69, 73, 76, 79, 82]},
   {id:'eguitar', name:'电吉他', en:'Electric guitar', rel:0.1, notes:[37, 40, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
+  {id:'synth',   name:'合成器', en:'Synth pad', rel:0.25, synth:padNote},
   {id:'organ',   name:'风琴', en:'Organ', rel:0.05, gain:0.9, notes:[33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
   {id:'harp',    name:'竖琴', en:'Harp', rel:0.3, notes:[35, 38, 41, 45, 48, 52, 55, 59, 62, 65, 69, 72, 76, 79, 83, 86]},
   {id:'strings', name:'弦乐', en:'Strings', rel:0.18, notes:[36, 39, 43, 46, 49, 52, 55, 60, 64, 67, 72, 76, 79, 84, 88]},
 ];
 
+// Both synths are the main page's, made to hold while the key is down; they return their oscillators and output node
+function epianoNote(a, m, vel){
+  const f = 440 * Math.pow(2, (m - 69) / 12), t = a.currentTime, out = a.createGain();
+  const car = a.createOscillator(), mod = a.createOscillator(), mg = a.createGain();
+  car.frequency.value = f; mod.frequency.value = f;
+  mg.gain.setValueAtTime(f * 2.2 * vel, t); mg.gain.exponentialRampToValueAtTime(f * 0.25, t + 0.6);
+  mod.connect(mg); mg.connect(car.frequency);
+  const tine = a.createOscillator(), tg = a.createGain();
+  tine.frequency.value = f * 14; tg.gain.setValueAtTime(0.05 * vel, t); tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+  tine.connect(tg); tg.connect(out);
+  const ag = a.createGain(), decay = Math.max(0.9, 2.4 - (m - 48) / 30);
+  ag.gain.setValueAtTime(0, t); ag.gain.linearRampToValueAtTime(0.3 * vel, t + 0.005);
+  ag.gain.setTargetAtTime(0.0001, t + 0.01, decay / 2.5);
+  const trem = a.createGain(); trem.gain.value = 1;
+  const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = 4.5; lg.gain.value = 0.03;
+  lfo.connect(lg); lg.connect(trem.gain);
+  car.connect(ag); ag.connect(trem); trem.connect(out);
+  const srcs = [car, mod, tine, lfo];
+  srcs.forEach(o => { o.start(t); o.stop(t + decay * 4); });
+  return {srcs, out};
+}
+function padNote(a, m, vel){
+  const f = 440 * Math.pow(2, (m - 69) / 12), t = a.currentTime;
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 4;
+  lp.frequency.setValueAtTime(f * 1.5, t);
+  lp.frequency.linearRampToValueAtTime(Math.min(9000, f * 7), t + 0.08);
+  lp.frequency.setTargetAtTime(Math.min(5000, f * 3), t + 0.1, 0.5);
+  const out = a.createGain();
+  out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(0.2 * vel, t + 0.03);
+  out.gain.setTargetAtTime(0.14 * vel, t + 0.05, 0.4);
+  lp.connect(out);
+  const srcs = [[-7, 'sawtooth', 1], [7, 'sawtooth', 1], [0, 'square', 0.5]].map(([cents, type, lvl], i) => {
+    const o = a.createOscillator(), og = a.createGain();
+    o.type = type; o.frequency.value = i === 2 ? f / 2 : f; o.detune.value = cents; og.gain.value = lvl * 0.33;
+    o.connect(og); og.connect(lp); o.start(t); o.stop(t + 30);
+    return o;
+  });
+  return {srcs, out};
+}
+
 const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, names:true, transpose:0, scale:false, susLen:1.5}, store.get('piano', {}));
 if(!INSTRUMENTS.some(i => i.id === S.inst)){
   const main = (() => { try{ return localStorage.getItem('chordle:inst'); }catch(e){ return null; } })();
-  S.inst = INSTRUMENTS.some(i => i.id === main) ? main : 'grand';
+  S.inst = INSTRUMENTS.some(i => i.id === main) ? main : 'piano';
 }
 const save = () => store.set('piano', S);
 let inst = INSTRUMENTS.find(i => i.id === S.inst);
@@ -228,6 +272,7 @@ function unlock(){ const a = getCtx(); if(a.state !== 'running') a.resume(); }
 
 const bufs = {}, loads = {};
 function loadInst(i){
+  if(!i.notes) return Promise.resolve();
   if(loads[i.id]) return loads[i.id];
   const a = getCtx(), b = bufs[i.id] = {};
   return loads[i.id] = Promise.all(i.notes.map(m => fetch(`/samples/${i.id}/${m}.mp3`)
@@ -239,7 +284,7 @@ function setInst(id){
   inst = INSTRUMENTS.find(i => i.id === id) || INSTRUMENTS[0];
   S.inst = inst.id; save();
   $('instSel').value = inst.id;
-  if(Object.keys(bufs[inst.id] || {}).length < inst.notes.length) $('load').textContent = L('加载中…', 'Loading…');
+  if(inst.notes && Object.keys(bufs[inst.id] || {}).length < inst.notes.length) $('load').textContent = L('加载中…', 'Loading…');
   loadInst(inst).then(() => { if(inst.id === id) $('load').textContent = ''; });
 }
 
@@ -247,26 +292,36 @@ const voices = new Map();   // midi -> sounding voice
 function noteOn(m, vel){
   const a = getCtx();
   if(a.state !== 'running') a.resume();
-  // until the chosen set has decoded, any loaded set stands in so the first notes are not silent
-  let b = bufs[inst.id], i = inst;
-  if(!b || !Object.keys(b).length){
-    i = INSTRUMENTS.find(x => bufs[x.id] && Object.keys(bufs[x.id]).length);
-    if(!i) return;
-    b = bufs[i.id];
-  }
-  let s = null;
-  for(const k in b){ if(s == null || Math.abs(k - m) < Math.abs(s - m)) s = +k; }
   const old = voices.get(m);
   if(old) release(old, 0.03);
-  const src = a.createBufferSource(), g = a.createGain();
-  src.buffer = b[s];
-  src.playbackRate.value = Math.pow(2, (m - s) / 12);
-  const lvl = 0.55 * vel * (i.gain || 1);
+  const g = a.createGain();
+  let srcs, i = inst;
+  if(i.synth){
+    const n = i.synth(a, m, vel);
+    srcs = n.srcs;
+    n.out.connect(g);
+  }else{
+    // until the chosen set has decoded, any loaded set stands in so the first notes are not silent
+    let b = bufs[i.id];
+    if(!b || !Object.keys(b).length){
+      i = INSTRUMENTS.find(x => bufs[x.id] && Object.keys(bufs[x.id]).length);
+      if(!i) return;
+      b = bufs[i.id];
+    }
+    let s = null;
+    for(const k in b){ if(s == null || Math.abs(k - m) < Math.abs(s - m)) s = +k; }
+    const src = a.createBufferSource();
+    src.buffer = b[s];
+    src.playbackRate.value = Math.pow(2, (m - s) / 12);
+    src.connect(g);
+    src.start();
+    srcs = [src];
+  }
+  const lvl = (i.synth ? 0.9 : 0.55 * vel) * (i.gain || 1);   // the synths already shape their own level from vel
   g.gain.value = lvl;
-  src.connect(g); g.connect(master);
-  src.start();
-  const v = {src, g, lvl, rel:i.rel, done:false};
-  src.onended = () => { if(voices.get(m) === v){ voices.delete(m); paintKey(m); } try{ g.disconnect(); }catch(e){} };
+  g.connect(master);
+  const v = {stop:t => srcs.forEach(o => { try{ o.stop(t); }catch(e){} }), g, lvl, rel:i.rel, done:false};
+  srcs[0].onended = () => { if(voices.get(m) === v){ voices.delete(m); paintKey(m); } try{ g.disconnect(); }catch(e){} };
   voices.set(m, v);
 }
 function release(v, tau){
@@ -276,7 +331,7 @@ function release(v, tau){
   v.g.gain.cancelScheduledValues(t);
   v.g.gain.setValueAtTime(f ? v.lvl * Math.exp(-Math.max(0, t - f.t0) / f.tau) : v.lvl, t);
   v.g.gain.setTargetAtTime(0, t, tau);
-  try{ v.src.stop(t + tau * 8); }catch(e){}
+  v.stop(t + tau * 8);
 }
 // a key let go under the pedal keeps ringing, but dies away over about the chosen sustain length
 function fadeOut(m){
@@ -287,7 +342,7 @@ function fadeOut(m){
   v.g.gain.cancelScheduledValues(t);
   v.g.gain.setValueAtTime(v.lvl, t);
   v.g.gain.setTargetAtTime(0, t, tau);
-  try{ v.src.stop(t + tau * 7); }catch(e){}
+  v.stop(t + tau * 7);
 }
 function damp(m){
   const v = voices.get(m);
