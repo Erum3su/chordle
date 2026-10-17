@@ -157,7 +157,7 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
   </section>
 
   <section class="panel">
-    <div class="arp">
+    <div class="arp" hidden>
       <button type="button" class="btn tog" id="arpBtn" aria-pressed="false"><span data-t="arp"></span></button>
       <div class="arpch" id="arpCh"></div>
       <span class="note" id="arpNote"></span>
@@ -609,6 +609,9 @@ const ARP = [
   {name:'Gm7', root:7, iv:[0, 3, 7, 10]},
 ];
 let arpI = 0;
+// hidden for now (the toggle's row is hidden too); flip to true to bring the practice back
+const ARP_ON = false;
+if(!ARP_ON) S.arp = false;
 function arpRoot(m){
   if(!S.arp) return;
   const i = ARP.findIndex(c => c.root === (m + S.transpose) % 12);
