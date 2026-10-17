@@ -79,14 +79,17 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .kb .k span{pointer-events:none;font-weight:700}
 .kb .kc{font-size:clamp(9px,calc(var(--kw) * .36),14px);opacity:.75;margin-bottom:5px;text-align:center;line-height:1.25}
 .kb .w .kc{color:#4f4c45}
-.kb .nn{font-size:clamp(8px,calc(var(--kw) * .3),12px);opacity:.6}
+.kb .nn{font-size:clamp(9px,calc(var(--kw) * .36),13px);opacity:.7}
 .kb .w.on{background:color-mix(in srgb,var(--sel) 45%,var(--ivory));color:#0d2552}
 .kb .b.on{background:var(--sel);box-shadow:none}
 .kb .k.ring:not(.on){box-shadow:inset 0 -5px 0 color-mix(in srgb,var(--accent) 70%,transparent)}
 .kb .w.mapped{background:linear-gradient(var(--ivory) 70%,color-mix(in srgb,var(--sel) 10%,var(--ivory)))}
 .kb .w.mapped.on{background:color-mix(in srgb,var(--sel) 45%,var(--ivory))}
 .kb.nolab .kc{display:none}
-.kb.nonames .nn{display:none}
+.kb.nonames .nn:not(.c){display:none}
+/* black-key names sit at the top of the key, clear of the key labels at the bottom */
+.kb .b{justify-content:space-between;padding-top:7px}
+.kb .nb{font-size:clamp(8px,calc(var(--kw) * .3),12px);opacity:.75;letter-spacing:-.04em;white-space:nowrap}
 .load{font-size:.8rem;color:var(--muted)}
 footer{font-size:.78rem;color:var(--muted);text-align:center;line-height:1.7}
 footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--panel)}
@@ -261,7 +264,7 @@ function padNote(a, m, vel){
   return {srcs, out};
 }
 
-const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, names:true, transpose:0, susLen:1.5, smart:true}, store.get('piano', {}));
+const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, keyNames:true, transpose:0, susLen:1.5, smart:true}, store.get('piano', {}));
 if(!INSTRUMENTS.some(i => i.id === S.inst)){
   const main = (() => { try{ return localStorage.getItem('chordle:inst'); }catch(e){ return null; } })();
   S.inst = INSTRUMENTS.some(i => i.id === main) ? main : 'piano';
@@ -581,16 +584,16 @@ function renderKb(){
     const cls = (held.has(m) ? ' on' : '') + (voices.has(m) ? ' ring' : '') + (inv[m] ? ' mapped' : '');
     if(isBlack(m)){
       const bw = kw * 0.62;
-      html += `<div class="k b${cls}" data-m="${m}" style="left:${(wi * kw - bw / 2).toFixed(2)}px;width:${bw.toFixed(2)}px">${lab}</div>`;
+      html += `<div class="k b${cls}" data-m="${m}" style="left:${(wi * kw - bw / 2).toFixed(2)}px;width:${bw.toFixed(2)}px"><span class="nn nb">${NAMES[m % 12]}</span>${lab}</div>`;
     }else{
-      const name = m % 12 === 0 ? nn(m) : (S.names && kw > 30 ? nn(m).replace(/\d+$/, '') : '');
-      html += `<div class="k w${cls}" data-m="${m}" style="left:${(wi * kw).toFixed(2)}px;width:${kw.toFixed(2)}px">${lab}<span class="nn">${name}</span></div>`;
+      const c = m % 12 === 0;   // C keeps its octave number, and stays labelled even with names off
+      html += `<div class="k w${cls}" data-m="${m}" style="left:${(wi * kw).toFixed(2)}px;width:${kw.toFixed(2)}px">${lab}<span class="nn${c ? ' c' : ''}">${c ? nn(m) : NAMES[m % 12]}</span></div>`;
       wi++;
     }
   }
   kb.innerHTML = html;
   kb.classList.toggle('nolab', !S.labels);
-  kb.classList.toggle('nonames', !S.names);
+  kb.classList.toggle('nonames', !S.keyNames);
   $('viewDown').disabled = lo <= 24;
   $('viewUp').disabled = lo >= maxLo(nW);
 }
@@ -749,8 +752,8 @@ $('trDown').onclick = () => setTranspose(S.transpose - 1);
 $('trUp').onclick = () => setTranspose(S.transpose + 1);
 $('optSmart').checked = S.smart;
 $('optSmart').onchange = e => { S.smart = e.target.checked; save(); e.target.blur(); };
-$('optNames').checked = S.names;
-$('optNames').onchange = e => { S.names = e.target.checked; save(); renderKb(); e.target.blur(); };
+$('optNames').checked = S.keyNames;
+$('optNames').onchange = e => { S.keyNames = e.target.checked; save(); renderKb(); e.target.blur(); };
 function applyLang(){
   document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
   document.title = L('弹钢琴 · Chordle', 'Free play · Chordle');
