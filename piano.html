@@ -177,7 +177,7 @@ const T = {
   midi: ['连接 MIDI 键盘', 'Connect MIDI'],
   help1: ['电脑键盘：下排 Z X C V … / 是白键（Z 是低音 7），A 行 D F H J K ; \' 是黑键；上排 Q W E R … \\ 是白键，数字行是黑键。上排 Q 从高一个八度的 7 开始，指法和下排一样，两排有几个音重叠，加起来不用换八度能弹将近三个八度。', 'Computer keys: bottom row Z X C V … / are white keys (Z is the B below C) with the A row (D F H J K ; \') as black keys; the top row Q W E R … \\ are white keys with the number row as black keys. Q starts on the B an octave above Z with the same shape, so the rows overlap a little and together cover nearly three octaves.'],
   help2: ['按住空格 = 踩延音踏板（延音开着时按住空格是暂时松开踏板，清掉余音），旁边的滑块调余音长短· ← → 整体移八度 · ↑ ↓ 升降半音（移调，琴键位置不变，只改变发出的音高）· Esc 停掉所有声音', 'Hold Space = sustain pedal (with sustain on, holding Space lifts the pedal to clear the ring); the slider sets how long notes ring · ← → shift by an octave · ↑ ↓ transpose a semitone (keys stay put, only the pitch moves) · Esc stops all sound'],
-  credit: ['乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）· 摇滚风琴、爵士风琴：FluidR3 GM，Frank Wen（CC BY 3.0，经 midi-js-soundfonts）', 'Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0) · Rock and jazz organ: FluidR3 GM, Frank Wen (CC BY 3.0, via midi-js-soundfonts)'],
+  credit: ['乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）· 摇滚风琴、爵士风琴、Rhodes 电钢琴：FluidR3 GM，Frank Wen（CC BY 3.0，经 midi-js-soundfonts）', 'Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0) · Rock organ, jazz organ and Rhodes: FluidR3 GM, Frank Wen (CC BY 3.0, via midi-js-soundfonts)'],
 };
 
 const store = {
@@ -191,13 +191,14 @@ const store = {
 const INSTRUMENTS = [
   {id:'piano',   name:'钢琴', en:'Piano', rel:0.09, notes:[36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
   {id:'grand',   name:'音乐会大钢琴', en:'Concert grand', rel:0.09, notes:[30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90]},
+  {id:'rhodes',  name:'Rhodes 电钢琴', en:'Rhodes', rel:0.12, gain:5, tail:true, notes:[33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96]},
   {id:'epiano',  name:'电钢琴', en:'Electric piano', rel:0.12, synth:epianoNote},
   {id:'guitar',  name:'原声吉他', en:'Acoustic guitar', rel:0.12, notes:[38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74]},
   {id:'nylon',   name:'尼龙吉他', en:'Nylon guitar', rel:0.12, notes:[35, 38, 42, 45, 49, 52, 55, 59, 63, 66, 69, 73, 76, 79, 82]},
   {id:'eguitar', name:'电吉他', en:'Electric guitar', rel:0.1, notes:[37, 40, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
   {id:'synth',   name:'合成器', en:'Synth pad', rel:0.25, synth:padNote},
   {id:'rock',    name:'摇滚风琴', en:'Rock organ', rel:0.03, bus:organBus, loop:[0.5, 3.05], flat:true, notes:[36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96]},
-  {id:'jazz',    name:'爵士风琴', en:'Jazz organ', rel:0.03, gain:2, loop:[1.35, 2.3], flat:true, notes:[36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96]},
+  {id:'jazz',    name:'爵士风琴', en:'Jazz organ', rel:0.03, gain:3.8, loop:[1.35, 2.3], flat:true, notes:[36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96]},
   {id:'organ',   name:'风琴', en:'Organ', rel:0.05, gain:0.9, notes:[33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84]},
   {id:'harp',    name:'竖琴', en:'Harp', rel:0.3, notes:[35, 38, 41, 45, 48, 52, 55, 59, 62, 65, 69, 72, 76, 79, 83, 86]},
   {id:'strings', name:'弦乐', en:'Strings', rel:0.18, notes:[36, 39, 43, 46, 49, 52, 55, 60, 64, 67, 72, 76, 79, 84, 88]},
@@ -311,6 +312,14 @@ function loopPoints(buf, [a, z]){
   const snap = t => { let i = Math.min(d.length - 2, Math.round(t * sr)); for(let k = 0; k < 2000 && i > 1; k++, i--) if(d[i - 1] < 0 && d[i] >= 0) break; return i / sr; };
   return buf._lp = [snap(a), snap(Math.min(z, buf.duration - 0.02))];
 }
+// how fast a sample is dying away (time constant, s), from its loudness at 0.8 s and 2.3 s
+function decayOf(buf){
+  if(buf._tau) return buf._tau;
+  const d = buf.getChannelData(0), sr = buf.sampleRate;
+  const rms = t => { let s = 0; const a = Math.round(t * sr), n = Math.round(0.4 * sr); for(let i = a; i < a + n && i < d.length; i++) s += d[i] * d[i]; return Math.sqrt(s / n) + 1e-6; };
+  const r = rms(0.8) / rms(2.3);
+  return buf._tau = Math.max(0.3, Math.min(12, r > 1 ? 1.5 / Math.log(r) : 12));
+}
 function noteOn(key, vel){
   const m = key + S.transpose;   // transposing changes only the pitch that sounds; the keys stay put
   const a = getCtx();
@@ -345,8 +354,19 @@ function noteOn(key, vel){
     // a softer touch also sounds darker, as on a real piano
     const lp = a.createBiquadFilter();
     lp.type = 'lowpass'; lp.Q.value = 0.5; lp.frequency.value = 900 + 15000 * vel * vel;
-    src.connect(lp); lp.connect(g);
+    src.connect(lp);
+    if(i.tail){
+      // these samples stop after 3 s while low notes are still ringing: loop the last stretch
+      // and keep it dying away at the rate the recording was decaying
+      const [ls, le] = loopPoints(b[s], [2.6, 3.05]), tail = decayOf(b[s]), rate = src.playbackRate.value;
+      src.loop = true; src.loopStart = ls; src.loopEnd = le;
+      const dg = a.createGain(), t1 = a.currentTime + ls / rate;
+      dg.gain.setValueAtTime(1, t1); dg.gain.setTargetAtTime(0, t1, tail / rate);
+      lp.connect(dg); dg.connect(g);
+      lp.stopAt = t1 + tail / rate * 7;
+    }else lp.connect(g);
     src.start();
+    if(lp.stopAt) src.stop(lp.stopAt);
     srcs = [src];
   }
   const lvl = (i.synth ? 0.9 : 0.55 * vel) * (i.gain || 1);   // the synths already shape their own level from vel
