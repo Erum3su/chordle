@@ -91,6 +91,11 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .kb .b{justify-content:space-between;padding-top:7px}
 .kb .nb{font-size:clamp(8px,calc(var(--kw) * .3),12px);opacity:.75;letter-spacing:-.04em;white-space:nowrap}
 .load{font-size:.8rem;color:var(--muted)}
+.ctl input[type=number]{width:4.2em;font:inherit;font-family:var(--mono);font-size:.95rem;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);text-align:center}
+.beats{display:flex;gap:7px;align-items:center}
+.beats i{width:12px;height:12px;border-radius:50%;background:var(--line);transition:background .05s}
+.beats i.on{background:var(--fg)}
+.beats i.on.one{background:var(--accent)}
 .arp{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:8px}
 .arpch{display:flex;flex-wrap:wrap;gap:6px}
 .arpch button{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:4px 10px;font:inherit;font-family:var(--display);font-weight:600;font-size:.95rem;cursor:pointer}
@@ -157,6 +162,29 @@ footer kbd{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line)
     </div>
   </section>
 
+  <section class="panel ctl" aria-label="rhythm">
+    <div class="grp">
+      <button type="button" class="btn tog" id="drumBtn" aria-pressed="false"><span data-t="drums"></span><kbd class="keyhelp">⏎</kbd></button>
+      <select id="patSel" aria-label="pattern"></select>
+    </div>
+    <div class="grp">
+      <button type="button" class="btn tog" id="metroBtn" aria-pressed="false"><span data-t="metro"></span></button>
+      <select id="sigSel" aria-label="time signature"><option>2/4</option><option>3/4</option><option>4/4</option><option>6/8</option></select>
+    </div>
+    <div class="grp">
+      <span class="label">BPM</span>
+      <button type="button" class="btn sq" id="bpmDown" aria-label="-">−</button>
+      <input type="number" id="bpm" min="40" max="240" step="1" inputmode="numeric" aria-label="BPM">
+      <button type="button" class="btn sq" id="bpmUp" aria-label="+">+</button>
+      <input type="range" id="bpmRange" min="40" max="240" step="1" aria-label="BPM">
+    </div>
+    <div class="grp">
+      <span class="label" data-t="dvol"></span><input type="range" id="dvol" min="0" max="100" step="1" aria-label="drum volume">
+      <span class="label" data-t="mvol"></span><input type="range" id="mvol" min="0" max="100" step="1" aria-label="metronome volume">
+    </div>
+    <div class="beats" id="beats" aria-hidden="true"></div>
+  </section>
+
   <section class="panel">
     <div class="arp" hidden>
       <button type="button" class="btn tog" id="arpBtn" aria-pressed="false"><span data-t="arp"></span></button>
@@ -192,13 +220,17 @@ const T = {
   showKeys: ['琴键上显示按键', 'Key labels'],
   showNames: ['显示音名', 'Note names'],
   smart: ['智能力度', 'Smart velocity'],
+  drums: ['鼓机', 'Drums'],
+  metro: ['节拍器', 'Metronome'],
+  dvol: ['鼓', 'Drums'],
+  mvol: ['节拍器', 'Click'],
   dyn: ['动态幅度', 'Dynamics'],
   arp: ['秋叶 A 段琶音', 'Autumn Leaves A: arpeggios'],
   key: ['调', 'Key'],
   midi: ['连接 MIDI 键盘', 'Connect MIDI'],
   help1: ['电脑键盘：下排 Z X C V … / 是白键（Z 是低音 7），A 行 D F H J K ; \' 是黑键；上排 Q W E R … \\ 是白键，数字行是黑键。上排 Q 从高一个八度的 7 开始，指法和下排一样，两排有几个音重叠，加起来不用换八度能弹将近三个八度。', 'Computer keys: bottom row Z X C V … / are white keys (Z is the B below C) with the A row (D F H J K ; \') as black keys; the top row Q W E R … \\ are white keys with the number row as black keys. Q starts on the B an octave above Z with the same shape, so the rows overlap a little and together cover nearly three octaves.'],
-  help2: ['按住空格 = 踩延音踏板（延音开着时按住空格是暂时松开踏板，清掉余音），旁边的滑块调余音长短· ← → 整体移八度 · ↑ ↓ 升降半音（移调，琴键位置不变，只改变发出的音高）· Esc 停掉所有声音', 'Hold Space = sustain pedal (with sustain on, holding Space lifts the pedal to clear the ring); the slider sets how long notes ring · ← → shift by an octave · ↑ ↓ transpose a semitone (keys stay put, only the pitch moves) · Esc stops all sound'],
-  credit: ['乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）· 摇滚风琴、爵士风琴、Rhodes 电钢琴：FluidR3 GM，Frank Wen（CC BY 3.0，经 midi-js-soundfonts）', 'Samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0) · Rock organ, jazz organ and Rhodes: FluidR3 GM, Frank Wen (CC BY 3.0, via midi-js-soundfonts)'],
+  help2: ['按住空格 = 踩延音踏板（延音开着时按住空格是暂时松开踏板，清掉余音），旁边的滑块调余音长短· ← → 整体移八度 · ↑ ↓ 升降半音（移调，琴键位置不变，只改变发出的音高）· Enter 开关鼓机 · Esc 停掉所有声音', 'Hold Space = sustain pedal (with sustain on, holding Space lifts the pedal to clear the ring); the slider sets how long notes ring · ← → shift by an octave · ↑ ↓ transpose a semitone (keys stay put, only the pitch moves) · Enter starts or stops the drums • Esc stops all sound'],
+  credit: ['乐器采样：tonejs-instruments（MIT）· 音乐会大钢琴：Salamander Grand Piano，Alexander Holm（CC BY 3.0）· 摇滚风琴、爵士风琴、Rhodes 电钢琴、鼓机和节拍器：FluidR3 GM，Frank Wen（CC BY 3.0，经 midi-js-soundfonts 和 webaudiofontdata）', 'Instrument samples: tonejs-instruments (MIT) · Concert grand: Salamander Grand Piano, Alexander Holm (CC BY 3.0) · Rock organ, jazz organ, Rhodes, drums and metronome: FluidR3 GM, Frank Wen (CC BY 3.0, via midi-js-soundfonts and webaudiofontdata)'],
 };
 
 const store = {
@@ -282,7 +314,7 @@ function padNote(a, m, vel){
   return {srcs, out};
 }
 
-const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, keyNames:true, transpose:0, susLen:1.5, smart:true, dyn:1.6, arp:false}, store.get('piano', {}));
+const S = Object.assign({inst:null, sustain:false, vol:80, base:48, labels:true, keyNames:true, transpose:0, susLen:1.5, smart:true, dyn:1.6, arp:false, pat:'rock', bpm:100, sig:'4/4', dvol:70, mvol:70}, store.get('piano', {}));
 if(!INSTRUMENTS.some(i => i.id === S.inst)){
   const main = (() => { try{ return localStorage.getItem('chordle:inst'); }catch(e){ return null; } })();
   S.inst = INSTRUMENTS.some(i => i.id === main) ? main : 'piano';
@@ -300,6 +332,7 @@ function getCtx(){
     comp.threshold.value = -10; comp.knee.value = 10; comp.ratio.value = 3; comp.attack.value = 0.002;
     master = ctx.createGain();
     master.connect(comp); comp.connect(ctx.destination);
+    master.__out = comp;   // drums and metronome join after the piano's volume
     setVol();
   }
   return ctx;
@@ -551,6 +584,7 @@ document.addEventListener('keydown', e => {
   }
   if(e.code === 'ArrowLeft' || e.code === 'ArrowRight'){ e.preventDefault(); shiftBase(e.code === 'ArrowLeft' ? -1 : 1); return; }
   if(e.code === 'ArrowUp' || e.code === 'ArrowDown'){ e.preventDefault(); setTranspose(S.transpose + (e.code === 'ArrowUp' ? 1 : -1)); return; }
+  if(e.code === 'Enter' || e.code === 'NumpadEnter'){ e.preventDefault(); if(!e.repeat) toggleDrums(); return; }
   if(e.code === 'Escape'){ allOff(); return; }
   if(!(e.code in KEYMAP)) return;
   e.preventDefault();
@@ -823,12 +857,132 @@ $('optSmart').checked = S.smart;
 $('optSmart').onchange = e => { S.smart = e.target.checked; save(); e.target.blur(); };
 $('optNames').checked = S.keyNames;
 $('optNames').onchange = e => { S.keyNames = e.target.checked; save(); renderKb(); e.target.blur(); };
+// ---------- drum machine & metronome ----------
+// Real drum hits from the FluidR3 GM kit (CC BY 3.0), one file per General MIDI drum note.
+// One clock drives both: 12 ticks per beat, so straight 16ths (every 3 ticks) and triplets (every 4) share it.
+const DRUMS = {kick:36, stick:37, snare:38, hat:42, pedal:44, open:46, crash:49, ride:51, bell:53, woodHi:76, woodLo:77};
+// pattern strings, one character per step: X loud, x normal, g ghost, . rest
+const PATS = [
+  {id:'rock',    zh:'摇滚',        en:'Rock',          div:4, kick:'X.......X.X.....', snare:'....X.......X...', hat:'X.x.X.x.X.x.X.x.'},
+  {id:'pop',     zh:'流行',        en:'Pop',           div:4, kick:'X.....x.X.......', snare:'....X.......X...', hat:'x.x.x.x.x.x.x.x.'},
+  {id:'funk',    zh:'放克',        en:'Funk',          div:4, kick:'X.....x...X..x..', snare:'....X..g.g..X..g', hat:'xgxgXgxgxgxgXgxg'},
+  {id:'shuffle', zh:'布鲁斯 Shuffle', en:'Blues shuffle', div:3, kick:'X.....X.....', snare:'...X.....X..', hat:'X.xx.xX.xx.x'},
+  {id:'swing',   zh:'爵士 Swing',   en:'Jazz swing',    div:3, ride:'X..x.gX..x.g', pedal:'...x.....x..', kick:'g..g..g..g..'},
+  {id:'bossa',   zh:'波萨诺瓦',     en:'Bossa nova',    div:4, kick:'X..xX..xX..xX..x', stick:'x..x..x...x..x..', hat:'xgxgxgxgxgxgxgxg'},
+];
+const VEL = {X:1, x:0.7, g:0.32};
+const SIGS = {'2/4':[2, 12], '3/4':[3, 12], '4/4':[4, 12], '6/8':[6, 6]};   // beats per bar, ticks per click (6/8 clicks eighth notes)
+const drumBufs = {};
+let drumLoad = null, drumBus = null, metroBus = null;
+function loadDrums(){
+  if(drumLoad) return drumLoad;
+  const a = getCtx();
+  drumBus = a.createGain(); metroBus = a.createGain();
+  drumBus.connect(master.__out); metroBus.connect(master.__out);
+  setRhythmVol();
+  return drumLoad = Promise.all(Object.values(DRUMS).map(n => fetch(`/samples/drums/${n}.mp3`)
+    .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+    .then(ab => new Promise(res => a.decodeAudioData(ab, b => { drumBufs[n] = b; res(); }, () => res())))
+    .catch(() => {})));
+}
+function setRhythmVol(){
+  if(drumBus) drumBus.gain.value = 0.55 * Math.pow(S.dvol / 70, 1.6);
+  if(metroBus) metroBus.gain.value = 0.45 * Math.pow(S.mvol / 70, 1.6);
+}
+let openHat = null;
+function hit(n, t, vel, bus){
+  const b = drumBufs[n];
+  if(!b) return;
+  // a closed or pedalled hat chokes the open one, like a real hi-hat
+  if((n === DRUMS.hat || n === DRUMS.pedal) && openHat){ try{ openHat.g.gain.setTargetAtTime(0, t, 0.02); openHat.src.stop(t + 0.2); }catch(e){} openHat = null; }
+  const src = ctx.createBufferSource(), g = ctx.createGain();
+  src.buffer = b; g.gain.value = vel;
+  src.connect(g); g.connect(bus); src.start(t);
+  if(n === DRUMS.open) openHat = {src, g};
+}
+const CLK = {run:false, tick:0, next:0, timer:0};
+let drumsOn = false, metroOn = false;
+function clockStep(){
+  const a = ctx, p = PATS.find(x => x.id === S.pat) || PATS[0];
+  while(CLK.next < a.currentTime + 0.12){
+    const t = CLK.next, k = CLK.tick;
+    if(drumsOn && k % (12 / p.div) === 0){
+      const len = p[Object.keys(p).find(x => DRUMS[x] && p[x])].length;
+      const step = (k / (12 / p.div)) % len;
+      for(const part in DRUMS){
+        const c = p[part] && p[part][step];
+        if(c && VEL[c]) hit(DRUMS[part], t, VEL[c] * (part === 'kick' && p.id === 'swing' ? 0.5 : 1), drumBus);
+      }
+    }
+    const [beats, per] = SIGS[S.sig];
+    if(metroOn && k % per === 0){
+      const b = (k / per) % beats;
+      hit(b === 0 ? DRUMS.woodHi : DRUMS.woodLo, t, b === 0 ? 1 : (S.sig === '6/8' && b === 3 ? 0.85 : 0.6), metroBus);
+    }
+    // light the beat dots in step with the sound
+    const beatTicks = metroOn ? per : 12, nb = metroOn ? beats : 4;
+    if(k % beatTicks === 0){
+      const b = (k / beatTicks) % nb;
+      setTimeout(() => { if(CLK.run) showBeat(b, nb); }, Math.max(0, (t - a.currentTime) * 1000));
+    }
+    CLK.next += 60 / S.bpm / 12;
+    CLK.tick++;
+  }
+  CLK.timer = setTimeout(clockStep, 25);
+}
+function showBeat(b, nb){
+  const box = $('beats');
+  if(box.children.length !== nb) box.innerHTML = '<i></i>'.repeat(nb);
+  [...box.children].forEach((d, i) => { d.classList.toggle('on', i === b); d.classList.toggle('one', i === 0); });
+}
+function clockSync(){
+  const want = drumsOn || metroOn;
+  $('drumBtn').setAttribute('aria-pressed', drumsOn ? 'true' : 'false');
+  $('metroBtn').setAttribute('aria-pressed', metroOn ? 'true' : 'false');
+  if(want && !CLK.run){
+    unlock();
+    loadDrums().then(() => {
+      if(CLK.run || !(drumsOn || metroOn)) return;
+      CLK.run = true; CLK.tick = 0; CLK.next = ctx.currentTime + 0.06;
+      clockStep();
+    });
+  }else if(!want && CLK.run){
+    CLK.run = false; clearTimeout(CLK.timer);
+    [...$('beats').children].forEach(d => d.classList.remove('on'));
+  }
+}
+function toggleDrums(){ drumsOn = !drumsOn; clockSync(); }
+function setBpm(v){
+  S.bpm = Math.max(40, Math.min(240, Math.round(+v) || 100)); save();
+  $('bpm').value = S.bpm; $('bpmRange').value = S.bpm;
+}
+PATS.forEach(p => { const o = document.createElement('option'); o.value = p.id; $('patSel').appendChild(o); });
+$('patSel').value = S.pat;
+$('patSel').onchange = e => { S.pat = e.target.value; save(); e.target.blur(); };
+$('sigSel').value = S.sig;
+$('sigSel').onchange = e => { S.sig = e.target.value; save(); showBeat(-1, SIGS[S.sig][0]); e.target.blur(); };
+$('drumBtn').onclick = toggleDrums;
+$('metroBtn').onclick = () => { metroOn = !metroOn; clockSync(); };
+setBpm(S.bpm);
+$('bpm').onchange = e => { setBpm(e.target.value); e.target.blur(); };
+$('bpmRange').oninput = e => setBpm(e.target.value);
+$('bpmRange').onchange = e => e.target.blur();
+$('bpmDown').onclick = () => setBpm(S.bpm - 1);
+$('bpmUp').onclick = () => setBpm(S.bpm + 1);
+[['dvol', 'dvol'], ['mvol', 'mvol']].forEach(([id, k]) => {
+  $(id).value = S[k];
+  $(id).oninput = e => { S[k] = +e.target.value; save(); setRhythmVol(); };
+  $(id).onchange = e => e.target.blur();
+});
+showBeat(-1, 4);
+
 function applyLang(){
   document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
   document.title = L('弹钢琴 · Chordle', 'Free play · Chordle');
   document.querySelectorAll('[data-t]').forEach(el => { const v = T[el.dataset.t]; if(v) el.textContent = v[LANG === 'en' ? 1 : 0]; });
   $('langBtn').textContent = LANG === 'en' ? '中文' : 'EN';
   [...$('instSel').options].forEach(o => { const i = INSTRUMENTS.find(x => x.id === o.value); o.textContent = L(i.name, i.en); });
+  [...$('patSel').options].forEach(o => { const p = PATS.find(x => x.id === o.value); o.textContent = L(p.zh, p.en); });
   pedalChanged(); showNow(); showSus(); showArp();
   if(midiAccess) hookMidi();
 }
